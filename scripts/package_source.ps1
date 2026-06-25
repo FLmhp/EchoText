@@ -6,10 +6,23 @@ if (Test-Path -LiteralPath $archive) {
     Remove-Item -LiteralPath $archive -Force
 }
 
+$excluded = @(
+    ".git",
+    ".venv",
+    ".buildozer",
+    ".buildozer-cache",
+    ".buildozer-venv",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "bin",
+    "build",
+    "dist"
+)
+
 $items = Get-ChildItem -Force |
     Where-Object {
-        $_.Name -notin @(".git", ".venv", ".buildozer", "build", "dist", "__pycache__")
+        $_.Name -notin $excluded
     }
 
 Compress-Archive -Path $items.FullName -DestinationPath $archive -Force
-

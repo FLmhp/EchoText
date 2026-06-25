@@ -1,4 +1,6 @@
 .venv/
+.buildozer-venv/
+.buildozer-cache/
 .buildozer/
 __pycache__/
 *.py[cod]
@@ -6,8 +8,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 build/
+bin/
 dist/
 *.spec.log
 *.egg-info/
 local.properties
-
