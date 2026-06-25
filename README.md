@@ -90,14 +90,16 @@ Build the Android APK through WSL/Ubuntu:
 .\scripts\build_android_wsl.ps1
 ```
 
-The WSL environment needs `python3`, `pip`, Java, Buildozer, and the Android SDK/NDK toolchain. Buildozer downloads most Android components during the first build.
+The WSL environment needs `python3`, `pip`, Java, Buildozer, and the Android SDK/NDK toolchain. Buildozer downloads most Android components during the first build. The current Android package targets API 35 with a minimum supported Android API level of 24, and the Android packaging toolchain is pinned to `python3==3.12.13` with `hostpython3==3.12.13` for compatibility with the current `python-for-android` release.
 
 On Ubuntu, install the required base packages before running the Android build:
 
 ```bash
 sudo apt update
-sudo apt install -y python3-pip python3-venv openjdk-17-jdk build-essential git zip unzip
+sudo apt install -y python3-pip python3-venv openjdk-17-jdk ant autoconf automake libtool pkg-config dos2unix build-essential git zip unzip libssl-dev libffi-dev libsqlite3-dev libbz2-dev libreadline-dev libncurses-dev libgdbm-dev tk-dev uuid-dev liblzma-dev
 ```
+
+If you use a local Windows proxy such as `http://127.0.0.1:7897`, keep `HTTPS_PROXY` or `HTTP_PROXY` set in PowerShell before launching `.\scripts\build_android_wsl.ps1`. The script rewrites `localhost` to the WSL-reachable Windows host address automatically, and it forwards the same proxy settings to Gradle/Java so Android build downloads can reach Google's Maven repositories from WSL.
 
 ### Troubleshooting
 
@@ -106,6 +108,12 @@ sudo apt install -y python3-pip python3-venv openjdk-17-jdk build-essential git 
 - Devices do not appear: confirm both devices are on the same Wi-Fi, firewall allows EchoText, and multicast/broadcast traffic is not blocked.
 - Pairing fails: rotate or re-read the target device's six digit code; codes expire after five minutes.
 - Android clipboard sync seems limited: automatic sync is intentionally foreground-only.
+- WSL reports that localhost proxy settings are not mirrored: keep the Windows-side proxy env vars set and run `.\scripts\build_android_wsl.ps1`; it rewrites `127.0.0.1` or `localhost` to the WSL NAT gateway automatically.
+- Buildozer stops at `autoreconf: not found`: install `autoconf automake libtool pkg-config` inside WSL, then rerun the Android build script.
+- Buildozer fails at `gradlew` with `/usr/bin/env: 'bash\\r'`: install `dos2unix` inside WSL and rerun `.\scripts\build_android_wsl.ps1`; `python-for-android` will normalize `gradlew` automatically once the tool is present.
+- Buildozer reaches the hostpython `pip` step and reports that the SSL module is not available: keep `requirements = python3==3.12.13,hostpython3==3.12.13,kivy` in `buildozer.spec`; the current `python-for-android` default CPython 3.14.2 path can fail there.
+- Buildozer reaches the hostpython `pip` step and reports that the SSL module is not available even on Python 3.12: install the WSL development packages listed above, especially `libssl-dev`, then clean the Android build directory and rerun the script.
+- Buildozer reaches the pure Python module install stage and `pip` fails with `RequirementInformation`: rerun `.\scripts\build_android_wsl.ps1`; it patches the current `python-for-android` venv bootstrap for Debian/Ubuntu's mixed `resolvelib` vendor layout before package installation starts.
 
 ## 中文
 
@@ -190,14 +198,16 @@ winget install --id JRSoftware.InnoSetup -e
 .\scripts\build_android_wsl.ps1
 ```
 
-WSL 环境需要 `python3`、`pip`、Java、Buildozer 和 Android SDK/NDK 工具链。第一次构建时 Buildozer 会下载多数 Android 组件。
+WSL 环境需要 `python3`、`pip`、Java、Buildozer 和 Android SDK/NDK 工具链。第一次构建时 Buildozer 会下载多数 Android 组件。当前 Android 安装包以 API 35 为目标，最低支持 Android API 24，并且 Android 打包链固定使用 `python3==3.12.13` 与 `hostpython3==3.12.13`，以兼容当前 `python-for-android` 版本。
 
 Ubuntu 中请先安装基础依赖：
 
 ```bash
 sudo apt update
-sudo apt install -y python3-pip python3-venv openjdk-17-jdk build-essential git zip unzip
+sudo apt install -y python3-pip python3-venv openjdk-17-jdk ant autoconf automake libtool pkg-config dos2unix build-essential git zip unzip libssl-dev libffi-dev libsqlite3-dev libbz2-dev libreadline-dev libncurses-dev libgdbm-dev tk-dev uuid-dev liblzma-dev
 ```
+
+如果你在 Windows 上使用 `http://127.0.0.1:7897` 这类本地代理，请在 PowerShell 中先设置好 `HTTPS_PROXY` 或 `HTTP_PROXY`，再执行 `.\scripts\build_android_wsl.ps1`。脚本会自动把 `localhost` 改写成 WSL 可访问的 Windows 主机地址，并把同一套代理参数传给 Gradle/Java，避免 NAT 模式下 “WSL 不支持 localhost 代理” 以及 Android 构建下载依赖超时的常见问题。
 
 ### 故障排查
 
@@ -206,3 +216,9 @@ sudo apt install -y python3-pip python3-venv openjdk-17-jdk build-essential git 
 - 设备没有出现：确认两台设备在同一 Wi-Fi、Windows 防火墙允许 EchoText、网络未屏蔽广播/组播。
 - 配对失败：重新查看或刷新目标设备上的 6 位配对码；配对码 5 分钟后过期。
 - Android 剪贴板自动同步受限：自动同步按设计仅支持应用前台运行时工作。
+- WSL 提示 localhost 代理没有镜像：保持 Windows 侧代理环境变量已设置，然后运行 `.\scripts\build_android_wsl.ps1`；脚本会自动把 `127.0.0.1` 或 `localhost` 改写为 WSL NAT 网关地址。
+- Buildozer 卡在 `autoreconf: not found`：在 WSL 里安装 `autoconf automake libtool pkg-config`，然后重新执行 Android 构建脚本。
+- Buildozer 在 `gradlew` 阶段报 `/usr/bin/env: 'bash\r'`：在 WSL 中安装 `dos2unix`，然后重跑 `.\scripts\build_android_wsl.ps1`；`python-for-android` 检测到该工具后会自动把 `gradlew` 转成 Unix 行尾。
+- Buildozer 进行到 hostpython 的 `pip` 阶段并提示 SSL 模块不可用：请把 `buildozer.spec` 里的 `requirements` 保持为 `python3==3.12.13,hostpython3==3.12.13,kivy`；当前 `python-for-android` 默认的 CPython 3.14.2 链路可能会在这里失败。
+- 即使已经切到 Python 3.12，Buildozer 在 hostpython 的 `pip` 阶段仍提示 SSL 模块不可用：请先安装上面列出的 WSL 开发包，尤其是 `libssl-dev`，然后清理 Android 构建目录并重新执行脚本。
+- Buildozer 已进入纯 Python 模块安装阶段，但 `pip` 报 `RequirementInformation` 错误：直接重跑 `.\scripts\build_android_wsl.ps1`；脚本会在安装开始前修补当前 `python-for-android` 的 venv 引导逻辑，以兼容 Debian/Ubuntu 下混合的 `resolvelib` vendor 布局。

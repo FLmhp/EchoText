@@ -13,3 +13,4 @@ dist/
 *.spec.log
 *.egg-info/
 local.properties
+build-android.log
