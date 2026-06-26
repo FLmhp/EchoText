@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.echotext.echotext.core.EchoTextController;
+import org.echotext.echotext.core.FailureStatusMapper;
 import org.echotext.echotext.core.SettingsStore;
 import org.echotext.echotext.model.HistoryEntry;
 import org.echotext.echotext.model.Peer;
@@ -299,7 +300,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             setStatus(getString(R.string.status_paired, paired.name));
             refreshPeerList();
         } catch (Exception exception) {
-            setStatus(getString(R.string.status_failed, exception.getMessage()));
+            setStatus(statusTextForException(exception, peer));
         }
     }
 
@@ -319,7 +320,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             setStatus(getString(R.string.status_sent, peer.name));
             refreshHistory();
         } catch (Exception exception) {
-            setStatus(getString(R.string.status_failed, exception.getMessage()));
+            setStatus(statusTextForException(exception, peer));
         }
     }
 
@@ -333,6 +334,15 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
 
     private void setStatus(@NonNull String text) {
         statusText.setText(text);
+    }
+
+    private String statusTextForException(Exception exception, Peer peer) {
+        int stringRes = FailureStatusMapper.stringResFor(exception, peer);
+        String message = getString(stringRes);
+        if (stringRes == R.string.status_request_failed && exception.getMessage() != null && !exception.getMessage().isBlank()) {
+            return getString(R.string.status_failed, exception.getMessage());
+        }
+        return message;
     }
 
     private void copyToClipboard(String text) {

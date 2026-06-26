@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import sys
+import time
 from functools import partial
+from pathlib import Path
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -15,8 +18,9 @@ from kivy.uix.switch import Switch
 from kivy.uix.textinput import TextInput
 from kivy.utils import platform as kivy_platform
 
+from echotext.desktop_env import diagnose_desktop_environment, select_windows_font
 from echotext.i18n import translator
-from echotext.models import HistoryEntry, Peer
+from echotext.models import EnvironmentDiagnosis, HistoryEntry, Peer
 from echotext.runtime import EchoTextRuntime
 from echotext.settings import SettingsStore
 from echotext.transport import TransportError
@@ -38,11 +42,24 @@ class EchoTextApp(App):
         self.last_clipboard_text = ""
         self.latest_text = ""
         self._clipboard_available = True
+        self.environment_diagnosis = EnvironmentDiagnosis(True, True, False, "none", "", "")
+        self._last_environment_refresh = 0.0
 
         root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(8))
 
         self.status_label = Label(text="EchoText", size_hint_y=None, height=dp(28))
         root.add_widget(self.status_label)
+
+        self.diagnostic_label = Label(
+            text="",
+            size_hint_y=None,
+            height=0,
+            halign="left",
+            valign="middle",
+            color=(1.0, 0.72, 0.3, 1.0),
+        )
+        self.diagnostic_label.bind(texture_size=self._resize_diagnostic_label)
+        root.add_widget(self.diagnostic_label)
 
         self.pair_label = Label(size_hint_y=None, height=dp(36))
         root.add_widget(self.pair_label)
@@ -132,6 +149,7 @@ class EchoTextApp(App):
         self.translate = translator(self.language_preference)
         self.history_switch.active = self.runtime.settings.persistent_history_enabled()
         self._apply_translations()
+        self._refresh_environment_diagnosis()
         self._refresh_pair_code()
         self._refresh_peers()
         self._refresh_history()
@@ -140,6 +158,8 @@ class EchoTextApp(App):
     def _tick(self, _dt: float) -> None:
         if self.runtime is None:
             return
+        if time.monotonic() - self._last_environment_refresh >= 5:
+            self._refresh_environment_diagnosis()
         self._refresh_pair_code()
         self._refresh_peers()
         if self.auto_sync_switch.active:
@@ -274,6 +294,10 @@ class EchoTextApp(App):
         label.text_size = (label.width, None)
         label.height = max(dp(120), texture_size[1] + dp(16))
 
+    def _resize_diagnostic_label(self, label: Label, texture_size: tuple[int, int]) -> None:
+        label.text_size = (label.width, None)
+        label.height = 0 if not label.text else max(dp(32), texture_size[1] + dp(10))
+
     def _set_status(self, text: str) -> None:
         self.status_label.text = text
 
@@ -289,6 +313,7 @@ class EchoTextApp(App):
             self.runtime.settings.set_language(code)
         self.translate = translator(code)
         self._apply_translations()
+        self._refresh_environment_diagnosis()
         self._refresh_pair_code()
         self._refresh_peers()
         self._refresh_history()
@@ -319,6 +344,33 @@ class EchoTextApp(App):
         )
         if not self.device_spinner.values:
             self.device_spinner.text = self.translate("no_devices")
+        self._render_environment_diagnosis()
+
+    def _refresh_environment_diagnosis(self) -> None:
+        if self.runtime is None:
+            return
+        self._last_environment_refresh = time.monotonic()
+        if sys.platform != "win32":
+            self.environment_diagnosis = EnvironmentDiagnosis(True, True, True, "none", "", "")
+            self._render_environment_diagnosis()
+            return
+        font_ok = kivy_platform == "android" or select_windows_font() is not None
+        self.environment_diagnosis = diagnose_desktop_environment(
+            self.runtime.identity().host,
+            font_ok=font_ok,
+            executable=Path(sys.executable),
+        )
+        self._render_environment_diagnosis()
+
+    def _render_environment_diagnosis(self) -> None:
+        warning_key = self.environment_diagnosis.warning_key
+        if not warning_key:
+            self.diagnostic_label.text = ""
+            self.diagnostic_label.height = 0
+            return
+        template = self.translate(warning_key)
+        detail = self.environment_diagnosis.warning_detail
+        self.diagnostic_label.text = template.format(detail=detail)
 
     def _clipboard_paste(self) -> str:
         if not self._clipboard_available:

@@ -34,6 +34,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "language_auto": "System",
         "language_english": "English",
         "language_chinese": "Chinese",
+        "warning_no_lan_ip": "No LAN IP detected. Current host: {detail}",
+        "warning_missing_cjk_font": "No supported Chinese system font was found. Chinese text may render incorrectly.",
+        "warning_firewall_missing": "Windows has not allowed LAN access for this process: {detail}",
+        "warning_current_process_firewall": "The current process is not covered by the EchoText firewall rule: {detail}",
+        "warning_firewall_private_only": "The installed firewall rule only allows Private networks. Reinstall the latest desktop package.",
     },
     "zh": {
         "title": "EchoText",
@@ -66,6 +71,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "language_auto": "跟随系统",
         "language_english": "English",
         "language_chinese": "中文",
+        "warning_no_lan_ip": "当前未获取到可用局域网地址，当前主机地址：{detail}",
+        "warning_missing_cjk_font": "当前系统未找到受支持的中文字体，中文界面可能显示异常。",
+        "warning_firewall_missing": "Windows 尚未为当前进程开放局域网访问：{detail}",
+        "warning_current_process_firewall": "当前运行进程不在 EchoText 防火墙规则内：{detail}",
+        "warning_firewall_private_only": "已安装的防火墙规则仅允许 Private 网络，请重装最新版桌面端安装包。",
     },
 }
 

@@ -34,7 +34,7 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""EchoText LAN"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private"; Flags: runhidden
+Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall delete rule name=""EchoText LAN"" >nul 2>nul & netsh advfirewall firewall add rule name=""EchoText LAN"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private,public remoteip=localsubnet"; Flags: runhidden
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]

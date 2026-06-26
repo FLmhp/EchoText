@@ -24,6 +24,13 @@
     <string name="status_history_cleared">History cleared</string>
     <string name="status_clipboard_unavailable">Clipboard is unavailable</string>
     <string name="status_clipboard_empty">Clipboard is empty</string>
+    <string name="status_connection_refused">The target device refused the connection</string>
+    <string name="status_connection_timeout">The target device did not respond in time</string>
+    <string name="status_host_unreachable">The target device is unreachable on this network</string>
+    <string name="status_pair_code_rejected">The target pair code is incorrect or expired</string>
+    <string name="status_signature_rejected">The paired device rejected the verification signature</string>
+    <string name="status_request_failed">The request could not be completed</string>
+    <string name="status_windows_lan_access">The Windows device has not opened LAN access for EchoText yet</string>
     <string name="no_devices">No devices discovered</string>
     <string name="pair_code_display">%1$s · %2$s:%3$d · Pair code: %4$s</string>
     <string name="paired_suffix"> · paired</string>
