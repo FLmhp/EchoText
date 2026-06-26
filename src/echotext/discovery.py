@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 
 from echotext.models import DeviceIdentity, Peer
+from echotext.network import broadcast_targets, should_prefer_source_host
 from echotext.serialization import dataclass_to_dict, identity_from_dict
 
 DISCOVERY_PORT = 48734
@@ -16,8 +17,13 @@ DISCOVERY_MAGIC = "ECHOTEXT_DISCOVERY_V1"
 class DiscoveryService:
     """UDP broadcaster and listener for LAN peers."""
 
-    def __init__(self, identity_provider: Callable[[], DeviceIdentity]) -> None:
+    def __init__(
+        self,
+        identity_provider: Callable[[], DeviceIdentity],
+        on_peers_changed: Callable[[], None] | None = None,
+    ) -> None:
         self.identity_provider = identity_provider
+        self.on_peers_changed = on_peers_changed
         self._peers: dict[str, Peer] = {}
         self._stop_event = threading.Event()
         self._threads: list[threading.Thread] = []
@@ -51,7 +57,9 @@ class DiscoveryService:
             while not self._stop_event.is_set():
                 identity = self.identity_provider()
                 payload = {"magic": DISCOVERY_MAGIC, "device": dataclass_to_dict(identity)}
-                sock.sendto(json.dumps(payload).encode("utf-8"), ("255.255.255.255", DISCOVERY_PORT))
+                payload_bytes = json.dumps(payload).encode("utf-8")
+                for target in broadcast_targets(identity.host):
+                    sock.sendto(payload_bytes, (target, DISCOVERY_PORT))
                 self._stop_event.wait(2)
         finally:
             sock.close()
@@ -59,6 +67,7 @@ class DiscoveryService:
     def _listen_loop(self) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.bind(("", DISCOVERY_PORT))
         sock.settimeout(1)
         try:
@@ -86,8 +95,8 @@ class DiscoveryService:
         if identity.device_id == local_identity.device_id:
             return
 
-        host = identity.host if identity.host != "127.0.0.1" else source_host
-        self._peers[identity.device_id] = Peer(
+        host = source_host if should_prefer_source_host(identity.host, source_host) else identity.host
+        peer = Peer(
             device_id=identity.device_id,
             name=identity.name,
             platform=identity.platform,
@@ -95,3 +104,9 @@ class DiscoveryService:
             port=identity.port,
             last_seen=time.time(),
         )
+        existing = self._peers.get(peer.device_id)
+        self._peers[peer.device_id] = peer
+        if self.on_peers_changed is None:
+            return
+        if existing is None or existing != peer:
+            self.on_peers_changed()

@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ic_launcher_background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <TextView
+            android:id="@+id/status_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Title"
+            android:textColor="@color/echo_text"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/pair_code_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            android:textColor="@color/echo_text_muted" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Spinner
+                android:id="@+id/device_spinner"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/echo_surface_alt"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:popupBackground="@color/echo_surface_alt" />
+
+            <Button
+                android:id="@+id/refresh_button"
+                android:layout_width="112dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="10dp"
+                android:backgroundTint="@color/echo_surface_alt"
+                android:text="@string/refresh"
+                android:textAllCaps="false"
+                android:textColor="@color/echo_text" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/peer_detail_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.AppCompat.Caption"
+            android:textColor="@color/echo_text_muted" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/pair_code_input"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/echo_glow"
+                android:hint="@string/pair_code_hint"
+                android:inputType="number"
+                android:maxLength="6"
+                android:singleLine="true"
+                android:textColor="@color/echo_text"
+                android:textColorHint="@color/echo_text_muted" />
+
+            <Button
+                android:id="@+id/pair_button"
+                android:layout_width="112dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="10dp"
+                android:backgroundTint="@color/echo_glow_soft"
+                android:text="@string/pair"
+                android:textAllCaps="false"
+                android:textColor="@color/echo_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/auto_sync"
+                android:textColor="@color/echo_text_muted"
+                android:textSize="15sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/auto_sync_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="@string/persistent_history"
+                android:textColor="@color/echo_text_muted"
+                android:textSize="15sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/persistent_history_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/language"
+                android:textColor="@color/echo_text_muted"
+                android:textSize="15sp" />
+
+            <Spinner
+                android:id="@+id/language_spinner"
+                android:layout_width="168dp"
+                android:layout_height="50dp"
+                android:backgroundTint="@color/echo_surface_alt"
+                android:popupBackground="@color/echo_surface_alt" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/message_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@android:color/transparent"
+            android:backgroundTint="@color/echo_surface"
+            android:gravity="top|start"
+            android:hint="@string/message"
+            android:inputType="textMultiLine|textCapSentences"
+            android:minHeight="170dp"
+            android:padding="14dp"
+            android:scrollbars="vertical"
+            android:textColor="@color/echo_text"
+            android:textColorHint="@color/echo_text_muted" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/paste_button"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/echo_surface_alt"
+                android:text="@string/paste"
+                android:textAllCaps="false"
+                android:textColor="@color/echo_text" />
+
+            <Button
+                android:id="@+id/send_button"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/echo_glow_soft"
+                android:text="@string/send"
+                android:textAllCaps="false"
+                android:textColor="@color/echo_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/copy_latest_button"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/echo_surface_alt"
+                android:text="@string/copy_latest"
+                android:textAllCaps="false"
+                android:textColor="@color/echo_text" />
+
+            <Button
+                android:id="@+id/clear_button"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/echo_surface_alt"
+                android:text="@string/clear"
+                android:textAllCaps="false"
+                android:textColor="@color/echo_text" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/history_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@color/echo_surface"
+            android:minHeight="220dp"
+            android:padding="14dp"
+            android:textColor="@color/echo_text"
+            android:textIsSelectable="true"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>

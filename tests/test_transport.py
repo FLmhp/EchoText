@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import socket
+
+import pytest
+
 from echotext.crypto import PairCode, generate_shared_secret
 from echotext.models import DeviceIdentity, Peer, TextMessage
-from echotext.transport import TransportClient, TransportServer
+from echotext.transport import DEFAULT_TRANSPORT_PORT, TransportClient, TransportServer
 
 
 def test_pair_and_send_message() -> None:
@@ -30,7 +34,9 @@ def test_pair_and_send_message() -> None:
     def on_message(message: TextMessage, _peer: Peer) -> None:
         received.append(message)
 
-    server = TransportServer(identity_provider, pair_code.matches, peer_provider, on_message, on_peer_paired)
+    server = TransportServer(
+        identity_provider, pair_code.matches, peer_provider, on_message, on_peer_paired, preferred_port=0
+    )
     server.start()
     try:
         client = TransportClient()
@@ -46,3 +52,43 @@ def test_pair_and_send_message() -> None:
         assert received == [message]
     finally:
         server.stop()
+
+
+def test_transport_server_prefers_stable_port() -> None:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        probe.bind(("", DEFAULT_TRANSPORT_PORT))
+    except OSError:
+        pytest.skip("stable transport port is already in use on this machine")
+    finally:
+        probe.close()
+    identity = DeviceIdentity("receiver", "Receiver", "Windows", "127.0.0.1", 0)
+    server = TransportServer(
+        lambda: identity, lambda code: True, lambda device_id: None, lambda message, peer: None, lambda peer: None
+    )
+    try:
+        server.start()
+        assert server.port == DEFAULT_TRANSPORT_PORT
+    finally:
+        server.stop()
+
+
+def test_transport_server_falls_back_when_stable_port_is_taken() -> None:
+    occupied_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        occupied_socket.bind(("", DEFAULT_TRANSPORT_PORT))
+    except OSError:
+        occupied_socket.close()
+        pytest.skip("stable transport port is already in use by another process")
+    occupied_socket.listen(1)
+    identity = DeviceIdentity("receiver", "Receiver", "Windows", "127.0.0.1", 0)
+    server = TransportServer(
+        lambda: identity, lambda code: True, lambda device_id: None, lambda message, peer: None, lambda peer: None
+    )
+    try:
+        server.start()
+        assert server.port not in {0, DEFAULT_TRANSPORT_PORT}
+    finally:
+        server.stop()
+        occupied_socket.close()

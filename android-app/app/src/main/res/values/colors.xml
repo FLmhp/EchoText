@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#07131F</color>
+    <color name="echo_surface">#10283D</color>
+    <color name="echo_surface_alt">#18344D</color>
+    <color name="echo_stroke">#275374</color>
+    <color name="echo_glow">#31D9FF</color>
+    <color name="echo_glow_soft">#15384E</color>
+    <color name="echo_text">#ECF8FF</color>
+    <color name="echo_text_muted">#A3C0D7</color>
+    <color name="echo_status_ok">#79F7FF</color>
+    <color name="echo_status_warn">#FFBC6A</color>
+</resources>

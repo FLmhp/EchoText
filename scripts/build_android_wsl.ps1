@@ -26,11 +26,12 @@ $wslRepo = $wslRepo.ToLowerInvariant()
 $pythonForAndroidRoot = Join-Path $repo ".buildozer\android\platform\python-for-android"
 $pythonForAndroidBuild = Join-Path $pythonForAndroidRoot "pythonforandroid\build.py"
 $pythonForAndroidRecipe = Join-Path $pythonForAndroidRoot "pythonforandroid\recipes\python3\__init__.py"
+$pythonForAndroidStart = Join-Path $pythonForAndroidRoot "pythonforandroid\bootstraps\common\build\jni\application\src\start.c"
 $pyjniusRecipe = Join-Path $pythonForAndroidRoot "pythonforandroid\recipes\pyjnius\__init__.py"
 
-$wslGateway = (wsl.exe -d Ubuntu -- bash -lc 'ip route show default | cut -d" " -f3 | head -1').Trim()
+$wslGateway = (wsl.exe -d Ubuntu -- bash -lc "ip route show default | sed -n '1s/^default via \\([^ ]*\\).*/\\1/p'").Trim()
 if (-not $wslGateway) {
-    $wslGateway = (wsl.exe -d Ubuntu -- bash -lc 'grep -m1 "^nameserver " /etc/resolv.conf | cut -d" " -f2').Trim()
+    $wslGateway = (wsl.exe -d Ubuntu -- bash -lc "grep -m1 '^nameserver ' /etc/resolv.conf | sed 's/^nameserver //'").Trim()
 }
 if (-not $wslGateway) {
     throw "Unable to determine a WSL-reachable host address for proxy rewriting."
@@ -82,6 +83,100 @@ $1        'ac_cv_little_endian_double=yes',
         }
         $patched = [System.Text.RegularExpressions.Regex]::Replace($recipeText, $needle, $replacement, 1)
         [System.IO.File]::WriteAllText($pythonForAndroidRecipe, $patched)
+    }
+
+    $recipeText = [System.IO.File]::ReadAllText($pythonForAndroidRecipe)
+    if (-not $recipeText.Contains("Keep Python sources in the Android bundle")) {
+        $callPatterns = @(
+            "(?m)^(\s*)self\.compile_python_files\(modules_build_dir\)\r?$",
+            "(?m)^(\s*)self\.compile_python_files\(join\(self\.get_build_dir\(arch\.arch\), 'Lib'\)\)\r?$",
+            "(?m)^(\s*)self\.compile_python_files\(self\.ctx\.get_python_install_dir\(arch\.arch\)\)\r?$"
+        )
+        $matchedPatternCount = 0
+        foreach ($pattern in $callPatterns) {
+            if ([System.Text.RegularExpressions.Regex]::IsMatch($recipeText, $pattern)) {
+                $recipeText = [System.Text.RegularExpressions.Regex]::Replace(
+                    $recipeText,
+                    $pattern,
+                    '$1# Keep Python sources in the Android bundle to avoid early stdlib.zip bootstrap failures on Android/Python 3.12.',
+                    1
+                )
+                $matchedPatternCount += 1
+            }
+        }
+        if ($matchedPatternCount -ne $callPatterns.Count) {
+            throw "Failed to locate the python-for-android python3 bundle compilation block for the stdlib source preservation patch."
+        }
+        [System.IO.File]::WriteAllText($pythonForAndroidRecipe, $recipeText)
+    }
+
+    $recipeText = [System.IO.File]::ReadAllText($pythonForAndroidRecipe)
+    if (-not $recipeText.Contains("Preserve Python source files in stdlib/site-packages bundles")) {
+        $stdlibNeedle = @'
+    stdlib_filen_blacklist = [
+        '*.py',
+        '*.exe',
+        '*.whl',
+    ]
+'@
+        $stdlibReplacement = @'
+    stdlib_filen_blacklist = [
+        # Preserve Python source files in stdlib/site-packages bundles.
+        '*.exe',
+        '*.whl',
+    ]
+'@
+        if (-not $recipeText.Contains($stdlibNeedle)) {
+            throw "Failed to locate the python-for-android stdlib_filen_blacklist block for the source preservation patch."
+        }
+        $recipeText = $recipeText.Replace($stdlibNeedle, $stdlibReplacement)
+
+        $sitePackagesNeedle = @'
+    site_packages_filen_blacklist = [
+        '*.py'
+    ]
+'@
+        $sitePackagesReplacement = @'
+    site_packages_filen_blacklist = [
+        # Preserve Python source files in stdlib/site-packages bundles.
+    ]
+'@
+        if (-not $recipeText.Contains($sitePackagesNeedle)) {
+            throw "Failed to locate the python-for-android site_packages_filen_blacklist block for the source preservation patch."
+        }
+        $recipeText = $recipeText.Replace($sitePackagesNeedle, $sitePackagesReplacement)
+
+        [System.IO.File]::WriteAllText($pythonForAndroidRecipe, $recipeText)
+    }
+
+    $recipeText = [System.IO.File]::ReadAllText($pythonForAndroidRecipe)
+    if (-not $recipeText.Contains("Store stdlib.zip entries uncompressed for early codec bootstrap")) {
+        $needle = "            shprint(sh.zip, '-X', stdlib_zip, *stdlib_filens)"
+        $replacement = @"
+            # Store stdlib.zip entries uncompressed for early codec bootstrap.
+            shprint(sh.zip, '-0', '-X', stdlib_zip, *stdlib_filens)
+"@
+        if (-not $recipeText.Contains($needle)) {
+            throw "Failed to locate the python-for-android stdlib zip command for the uncompressed bundle patch."
+        }
+        [System.IO.File]::WriteAllText($pythonForAndroidRecipe, $recipeText.Replace($needle, $replacement))
+    }
+}
+
+if (Test-Path -LiteralPath $pythonForAndroidStart) {
+    $startText = [System.IO.File]::ReadAllText($pythonForAndroidStart)
+    if (-not $startText.Contains("Keep Python 3.12/3.13 on the legacy init path")) {
+        $needle = "#define P4A_MIN_VER 11"
+        $replacement = @'
+#define P4A_MIN_VER 14
+// Keep Python 3.12/3.13 on the legacy init path. The newer PyConfig-based
+// bootstrap added for Python 3.14 can fail very early on Android while
+// importing the filesystem codec, even when stdlib.zip is present.
+'@
+        if (-not $startText.Contains($needle)) {
+            throw "Failed to locate the python-for-android bootstrap version gate in start.c."
+        }
+        [System.IO.File]::WriteAllText($pythonForAndroidStart, $startText.Replace($needle, $replacement))
     }
 }
 

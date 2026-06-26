@@ -42,3 +42,15 @@ class HistoryEntry:
     text: str
     created_at: float
     message_id: str
+
+
+@dataclass(frozen=True)
+class EnvironmentDiagnosis:
+    """Summarize desktop environment readiness for LAN operation."""
+
+    lan_ip_ok: bool
+    font_ok: bool
+    firewall_rule_found: bool
+    firewall_scope: str
+    warning_key: str
+    warning_detail: str

@@ -21,6 +21,7 @@ class EchoTextRuntime:
         settings: SettingsStore | None = None,
         on_message: Callable[[HistoryEntry], None] | None = None,
         on_peer_paired: Callable[[Peer], None] | None = None,
+        on_peers_changed: Callable[[], None] | None = None,
     ) -> None:
         self.settings = settings or SettingsStore()
         self.pair_code = PairCode()
@@ -32,6 +33,7 @@ class EchoTextRuntime:
         self.client = TransportClient()
         self._on_message = on_message
         self._on_peer_paired = on_peer_paired
+        self._on_peers_changed = on_peers_changed
         self.server = TransportServer(
             self.identity,
             self.pair_code.matches,
@@ -39,7 +41,7 @@ class EchoTextRuntime:
             self._handle_message,
             self._handle_peer_paired,
         )
-        self.discovery = DiscoveryService(self.identity)
+        self.discovery = DiscoveryService(self.identity, self._handle_peers_changed)
 
     def start(self) -> None:
         """Start network services."""
@@ -82,7 +84,7 @@ class EchoTextRuntime:
                     shared_secret=existing.shared_secret,
                 )
         peers = {**self._discovered_peers, **self._paired_peers}
-        return sorted(peers.values(), key=lambda peer: peer.name.lower())
+        return _dedupe_peers(sorted(peers.values(), key=lambda peer: peer.name.lower()))
 
     def pair_with_peer(self, peer: Peer, pair_code: str) -> Peer:
         """Pair with a peer using its visible code."""
@@ -94,7 +96,7 @@ class EchoTextRuntime:
             name=peer_identity.name,
             platform=peer_identity.platform,
             host=peer.host,
-            port=peer.port,
+            port=peer_identity.port,
             last_seen=time.time(),
             shared_secret=shared_secret,
         )
@@ -105,8 +107,17 @@ class EchoTextRuntime:
         """Send text to a paired peer."""
 
         paired = self._paired_peers.get(peer.device_id)
-        if paired is None:
+        if paired is None or paired.shared_secret is None:
             raise TransportError("Pair with the device before sending text")
+        active_peer = Peer(
+            device_id=paired.device_id,
+            name=paired.name,
+            platform=paired.platform,
+            host=peer.host,
+            port=peer.port,
+            last_seen=peer.last_seen,
+            shared_secret=paired.shared_secret,
+        )
         message = TextMessage(
             message_id=uuid.uuid4().hex,
             sender_id=self.identity().device_id,
@@ -114,8 +125,8 @@ class EchoTextRuntime:
             text=text,
             created_at=time.time(),
         )
-        self.client.send_message(paired, message)
-        entry = HistoryEntry("sent", paired.name, text, message.created_at, message.message_id)
+        self.client.send_message(active_peer, message)
+        entry = HistoryEntry("sent", active_peer.name, text, message.created_at, message.message_id)
         self.history.add(entry)
         return entry
 
@@ -130,6 +141,16 @@ class EchoTextRuntime:
 
         self.history.clear()
 
+    def set_auto_sync_enabled(self, enabled: bool) -> None:
+        """Persist the foreground auto sync setting."""
+
+        self.settings.set_auto_sync_enabled(enabled)
+
+    def auto_sync_enabled(self) -> bool:
+        """Return the foreground auto sync setting."""
+
+        return self.settings.auto_sync_enabled()
+
     def _handle_message(self, message: TextMessage, peer: Peer) -> None:
         entry = HistoryEntry("received", peer.name, message.text, message.created_at, message.message_id)
         self.history.add(entry)
@@ -141,6 +162,24 @@ class EchoTextRuntime:
         if self._on_peer_paired is not None:
             self._on_peer_paired(peer)
 
+    def _handle_peers_changed(self) -> None:
+        if self._on_peers_changed is not None:
+            self._on_peers_changed()
+
     def _save_peer(self, peer: Peer) -> None:
         self._paired_peers[peer.device_id] = peer
         self.settings.save_peer(peer)
+
+
+def _dedupe_peers(peers: list[Peer]) -> list[Peer]:
+    chosen: dict[tuple[str, str], Peer] = {}
+    for peer in peers:
+        key = (peer.name.casefold(), peer.platform.casefold())
+        existing = chosen.get(key)
+        if existing is None or _peer_rank(peer) > _peer_rank(existing):
+            chosen[key] = peer
+    return sorted(chosen.values(), key=lambda peer: peer.name.lower())
+
+
+def _peer_rank(peer: Peer) -> tuple[float, int]:
+    return (peer.last_seen, 1 if peer.shared_secret else 0)

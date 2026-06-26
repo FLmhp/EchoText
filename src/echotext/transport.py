@@ -14,6 +14,8 @@ from echotext.crypto import sign_payload, verify_signature
 from echotext.models import DeviceIdentity, Peer, TextMessage
 from echotext.serialization import dataclass_to_dict, identity_from_dict, message_from_dict
 
+DEFAULT_TRANSPORT_PORT = 48735
+
 
 class TransportError(RuntimeError):
     """Raised when a peer request fails."""
@@ -144,9 +146,10 @@ class TransportServer:
         peer_provider: Callable[[str], Peer | None],
         on_message: Callable[[TextMessage, Peer], None],
         on_peer_paired: Callable[[Peer], None],
+        preferred_port: int = DEFAULT_TRANSPORT_PORT,
     ) -> None:
-        self._server = EchoHTTPServer(
-            ("", 0),
+        self._server = _bind_server(
+            preferred_port,
             identity_provider,
             pair_code_matches,
             peer_provider,
@@ -172,6 +175,34 @@ class TransportServer:
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=2)
+
+
+def _bind_server(
+    preferred_port: int,
+    identity_provider: Callable[[], DeviceIdentity],
+    pair_code_matches: Callable[[str], bool],
+    peer_provider: Callable[[str], Peer | None],
+    on_message: Callable[[TextMessage, Peer], None],
+    on_peer_paired: Callable[[Peer], None],
+) -> EchoHTTPServer:
+    try:
+        return EchoHTTPServer(
+            ("", preferred_port),
+            identity_provider,
+            pair_code_matches,
+            peer_provider,
+            on_message,
+            on_peer_paired,
+        )
+    except OSError:
+        return EchoHTTPServer(
+            ("", 0),
+            identity_provider,
+            pair_code_matches,
+            peer_provider,
+            on_message,
+            on_peer_paired,
+        )
 
 
 class TransportClient:
