@@ -8,12 +8,16 @@ block_cipher = None
 
 kivy_deps = get_deps_all()
 project_root = Path.cwd()
+branding_dir = project_root / "assets" / "branding"
 
 a = Analysis(
     [str(project_root / "main.py")],
     pathex=[str(project_root)],
     binaries=kivy_deps["binaries"],
-    datas=[],
+    datas=[
+        (str(branding_dir / "echotext-icon-256.png"), "assets/branding"),
+        (str(branding_dir / "echotext-icon-1024.png"), "assets/branding"),
+    ],
     hiddenimports=kivy_deps["hiddenimports"],
     hookspath=hookspath(),
     hooksconfig={},
@@ -42,6 +46,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=str(branding_dir / "EchoText.ico"),
 )
 coll = COLLECT(
     exe,

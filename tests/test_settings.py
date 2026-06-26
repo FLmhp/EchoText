@@ -25,3 +25,14 @@ def test_language_defaults_to_chinese_on_windows(monkeypatch, tmp_path: Path) ->
     store = settings.SettingsStore(data_dir=tmp_path)
 
     assert store.language() == "zh"
+
+
+def test_auto_sync_setting_round_trips(tmp_path: Path) -> None:
+    store = settings.SettingsStore(data_dir=tmp_path)
+
+    assert store.auto_sync_enabled() is False
+
+    store.set_auto_sync_enabled(True)
+    reloaded = settings.SettingsStore(data_dir=tmp_path)
+
+    assert reloaded.auto_sync_enabled() is True

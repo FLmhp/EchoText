@@ -110,6 +110,17 @@ class SettingsStore:
         self.data["persistent_history"] = enabled
         self.save()
 
+    def auto_sync_enabled(self) -> bool:
+        """Return whether foreground auto sync is enabled."""
+
+        return bool(self.data.get("auto_sync", False))
+
+    def set_auto_sync_enabled(self, enabled: bool) -> None:
+        """Persist the foreground auto sync setting."""
+
+        self.data["auto_sync"] = enabled
+        self.save()
+
     def language(self) -> str:
         """Return the UI language preference."""
 

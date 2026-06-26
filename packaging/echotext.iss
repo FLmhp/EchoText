@@ -19,6 +19,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
+SetupIconFile=..\assets\branding\EchoText.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

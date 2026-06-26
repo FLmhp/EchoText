@@ -1,172 +1,44 @@
 # EchoText
 
-[English](#english) | [中文](#中文)
+<p align="center">
+  <img src="./assets/branding/echotext-icon-256.png" width="112" alt="EchoText icon" />
+</p>
 
-EchoText is a LAN text bridge between Windows and Android. It discovers nearby devices on the same network, pairs them with a six digit code, transfers text over HTTP with HMAC verification, and keeps the workflow close to copy/paste.
+<p align="center">
+  同一局域网内，在 Windows 和 Android 之间快速配对、双向传输文本。
+</p>
+
+<p align="center">
+  <a href="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12" /></a>
+  <a href="https://img.shields.io/badge/Android-API%2024%2B-34A853?logo=android&logoColor=white"><img src="https://img.shields.io/badge/Android-API%2024%2B-34A853?logo=android&logoColor=white" alt="Android API 24+" /></a>
+  <a href="https://img.shields.io/badge/Platform-Windows%20%2B%20Android-0A84FF"><img src="https://img.shields.io/badge/Platform-Windows%20%2B%20Android-0A84FF" alt="Windows and Android" /></a>
+  <a href="https://img.shields.io/badge/Dependencies-uv-7C3AED"><img src="https://img.shields.io/badge/Dependencies-uv-7C3AED" alt="uv managed" /></a>
+  <a href="https://img.shields.io/badge/Lint-ruff-F1B722"><img src="https://img.shields.io/badge/Lint-ruff-F1B722" alt="ruff" /></a>
+</p>
+
+<!-- README-I18N:START -->
+
+**简体中文** | [English](./README.en.md)
+
+<!-- README-I18N:END -->
 
 > [!NOTE]
-> EchoText is meant for trusted local networks such as home Wi-Fi or office LANs. It is not an end-to-end encrypted internet messenger.
+> EchoText 面向受信任的本地网络，例如家庭 Wi-Fi、办公室局域网或热点共享网络。它不是端到端加密的互联网聊天工具。
 
-## English
-
-### Overview
-
-- Windows desktop app: Python 3.12 + Kivy
-- Android app: native Java + Android SDK
-- Discovery: UDP broadcast on port `48734`
-- Discovery targets: global broadcast plus the active LAN subnet broadcast (for example `192.168.3.255`)
-- Transport: HTTP `POST /api/v1/pair` and `POST /api/v1/messages`
-- Integrity: per-peer HMAC-SHA256 signatures
-- Clipboard: manual paste/send/copy plus optional foreground auto sync
-- History: session-only by default, optional local persistence
-- UI: English and Chinese, Android defaults to system language and supports manual switching
-- Desktop language: Windows now defaults to Chinese on first launch, supports manual switching, and automatically uses a local CJK system font when available
-- Connectivity: both apps prefer a stable LAN transport port and only fall back to a random port when the preferred port is already occupied
-- Peer cache hygiene: when a device is rediscovered or re-paired with a new device ID, EchoText now prunes stale same-name peer records automatically
-
-The current Android deliverable is the native Java app under [`android-app/`](/C:/Users/SoloEternity/Documents/Code/EchoText/android-app). The older `python-for-android` / Buildozer path is kept only as legacy build context and is no longer the recommended route for APK delivery.
-
-### Install
-
-Use the packaged artifacts from `dist/`:
-
-- Android: `EchoText-Android-v0.1.0-debug.apk`
-- Windows: `EchoText-Setup-v0.1.0.exe`
-- Source: `EchoText-source-v0.1.0.zip`
-
-Keep both devices on the same LAN. The Windows installer now adds a `LocalSubnet` firewall rule for `EchoText.exe` on both Private and Public networks; if you run from source, still allow Windows firewall access when prompted.
-
-### Use
-
-1. Open EchoText on both devices.
-2. Wait for the target device to appear in the device list.
-3. Read the target device's visible pair code.
-4. Enter that code on the other device and press `Pair`.
-5. Paste or type text, then press `Send`.
-6. Received text is copied locally and appended to the history panel.
-
-Foreground auto sync only mirrors clipboard changes while the app stays open in the foreground.
-
-### Development
-
-EchoText uses `uv` for project dependency management. A global `python` and `pip` should still exist on `PATH` for compatibility and diagnostics, but project dependencies should be managed with `uv`.
-
-Repair or verify the Windows toolchain:
-
-```powershell
-.\scripts\repair_toolchain.ps1
-```
-
-Install dependencies and run checks:
-
-```powershell
-uv sync --group dev
-uv run ruff format --check .
-uv run ruff check .
-uv run pytest
-```
-
-Run the Windows app from source:
-
-```powershell
-uv run echotext
-```
-
-### Build
-
-Create the source archive:
-
-```powershell
-.\scripts\package_source.ps1
-```
-
-Build the Windows app and installer:
-
-```powershell
-.\scripts\build_windows.ps1
-```
-
-Build the Android APK on Windows with the local Android SDK:
-
-```powershell
-.\scripts\build_android_native.ps1
-```
-
-Run the full build flow:
-
-```powershell
-.\scripts\build_all.ps1
-```
-
-The Android build expects one of these:
-
-- `ANDROID_SDK_ROOT`
-- `ANDROID_HOME`
-- default SDK path at `%LOCALAPPDATA%\Android\Sdk`
-
-If you use an HTTP/HTTPS proxy, keep `HTTP_PROXY` or `HTTPS_PROXY` set before launching the Android build. The script forwards those settings to Gradle's JVM arguments.
-
-### Packaging Outputs
-
-Successful builds place these files in `dist/`:
-
-- `EchoText-source-v0.1.0.zip`
-- `EchoText-Android-v0.1.0-debug.apk`
-- `EchoText-Setup-v0.1.0.exe`
-
-### Validation
-
-Completed validation for the current Android app includes:
-
-- native Java APK builds successfully with Gradle
-- APK installs on a real HarmonyOS 4.2 / Android 12 compatible device through `adb shell pm install`
-- app launches on device without the previous loading-screen crash
-- Android no longer fails with `Cleartext HTTP traffic ... not permitted` when talking to LAN peers
-- Windows desktop Chinese UI no longer depends on the Kivy default font and uses a compatible local system font
-- fresh Android startup can rediscover a Windows peer through the updated subnet broadcast path
-- Android-to-Windows signed message delivery works on a real device after peer state is refreshed
-
-### Troubleshooting
-
-- `python` opens the Microsoft Store or points to a dead shim:
-  Run `.\scripts\repair_toolchain.ps1`.
-- `pip` is missing from `PATH`:
-  Reinstall or reset Scoop Python, then reopen PowerShell.
-- `uv run` uses the wrong interpreter:
-  Confirm `.python-version` is `3.12` and run `uv sync --group dev`.
-- Android build cannot find the SDK:
-  Set `ANDROID_SDK_ROOT` or install the SDK to `%LOCALAPPDATA%\Android\Sdk`.
-- `adb install` is rejected on HarmonyOS:
-  Use `adb push ... /data/local/tmp/...` followed by `adb shell pm install -r -t ...`, or enable the device's USB install permission flow.
-- Devices do not appear:
-    Make sure both devices are on the same Wi-Fi and local broadcast traffic is not blocked. The latest build now sends discovery packets to both `255.255.255.255` and the active subnet broadcast target, so reopen both apps after upgrading.
-- Pairing fails:
-    Re-read the target pair code; codes expire after five minutes. If the Windows app is launched from source or an older installer, also confirm Windows Defender Firewall allows `EchoText.exe` or `python.exe` for local subnet access.
-- Android receives from Windows but cannot send back:
-    Upgrade both apps to the latest build, then reopen both sides once so they can republish the preferred LAN transport port. Re-pair the device if it was previously cached under an older device ID; EchoText now removes stale same-name peer entries automatically after a successful re-pair.
-- Windows Chinese text still renders incorrectly:
-    Install a standard Chinese system font such as Microsoft YaHei, DengXian, SimHei, or Noto Sans SC, then restart EchoText.
-
-## 中文
-
-### 概览
+## 概览
 
 - Windows 桌面端：Python 3.12 + Kivy
 - Android 端：原生 Java + Android SDK
 - 发现机制：UDP 广播，端口 `48734`
-- 广播目标：同时发送到全局广播地址和当前局域网子网广播地址，例如 `192.168.3.255`
 - 传输机制：HTTP `POST /api/v1/pair` 与 `POST /api/v1/messages`
-- 完整性校验：基于每个已配对设备的 HMAC-SHA256 签名
-- 剪贴板：支持手动粘贴/发送/复制，也支持前台自动同步
-- 历史记录：默认只保留会话内历史，可选本地持久化
-- 界面语言：支持中英双语，Android 默认跟随系统语言，也可手动切换
-- 桌面端语言：Windows 首次启动默认中文，也支持手动切换，并会优先使用本机可用的中文系统字体
-- 连通性：Android 与 Windows 都会优先使用固定局域网传输端口，只有该端口已被占用时才回退到随机端口
-- 设备缓存清理：如果同一设备因重装或清缓存产生新的 device ID，EchoText 会在重新配对后自动清理旧的同名缓存记录
+- 完整性校验：基于已配对设备的 HMAC-SHA256 签名
+- 剪贴板：支持手动粘贴、发送、复制最新文本和前台自动同步
+- 历史记录：默认仅保留会话内历史，可选本地持久化
+- 图标与打包：统一品牌图标同时用于 Android 启动图标、Windows EXE、窗口图标和安装器
 
-当前可交付的 Android 方案是原生 Java 工程 [`android-app/`](/C:/Users/SoloEternity/Documents/Code/EchoText/android-app)。旧的 `python-for-android` / Buildozer 路线仅作为历史构建上下文保留，不再是推荐的 APK 交付方式。
+当前 Android 交付物来自 [`android-app/`](/C:/Users/SoloEternity/Documents/Code/EchoText/android-app) 原生工程。旧的 Buildozer 路线仅保留为历史上下文，不再作为推荐 APK 交付方式。
 
-### 安装
+## 安装
 
 使用 `dist/` 目录中的构建产物：
 
@@ -174,20 +46,20 @@ Completed validation for the current Android app includes:
 - Windows：`EchoText-Setup-v0.1.0.exe`
 - 源码压缩包：`EchoText-source-v0.1.0.zip`
 
-请确保手机和电脑连接在同一个局域网内。Windows 安装器现在会为 `EchoText.exe` 自动添加 `LocalSubnet` 入站规则，并同时覆盖 Private 与 Public 网络；如果你是从源码运行，首次弹出防火墙提示时仍需允许 EchoText 访问本地网络。
+请确保手机和电脑连接在同一局域网。Windows 安装器会为 `EchoText.exe` 自动添加 `LocalSubnet` 入站规则，并覆盖 Private 与 Public 网络；如果你从源码运行，首次弹出防火墙提示时仍需允许本地网络访问。
 
-### 使用
+## 配对与发送
 
-1. 在两台设备上打开 EchoText。
+1. 在手机和电脑上都打开 EchoText。
 2. 等待目标设备出现在设备列表中。
-3. 查看目标设备界面显示的 6 位配对码。
-4. 在另一台设备输入该配对码并点击 `配对`。
-5. 粘贴或输入文本，然后点击 `发送`。
-6. 收到的文本会复制到本地，并写入历史记录区域。
+3. 查看目标设备显示的 6 位配对码。
+4. 在另一台设备输入配对码并点击 `配对`。
+5. 粘贴或输入文本后点击 `发送`。
+6. 收到的文本会自动写入历史记录区，并可一键复制最新内容。
 
 前台自动同步只会在应用保持前台打开时同步剪贴板变化。
 
-### 开发
+## 开发
 
 EchoText 使用 `uv` 管理项目依赖。全局 `python` 和 `pip` 仍需要出现在 `PATH` 中，方便兼容脚本和诊断，但项目依赖请统一通过 `uv` 管理。
 
@@ -206,13 +78,22 @@ uv run ruff check .
 uv run pytest
 ```
 
-从源码运行 Windows 端：
+从源码运行 Windows 桌面端：
 
 ```powershell
 uv run echotext
 ```
 
-### 构建
+> [!TIP]
+> 当前仓库没有 `.github` workflow，因此 badge 只展示静态技术信息，不展示 CI 状态。
+
+## 构建
+
+生成品牌资产：
+
+```powershell
+uv run python scripts/generate_brand_assets.py
+```
 
 创建源码压缩包：
 
@@ -220,7 +101,7 @@ uv run echotext
 .\scripts\package_source.ps1
 ```
 
-构建 Windows 应用和安装器：
+构建 Windows 应用与安装器：
 
 ```powershell
 .\scripts\build_windows.ps1
@@ -246,7 +127,7 @@ Android 构建脚本会按以下顺序查找 SDK：
 
 如果需要代理，请在运行 Android 构建脚本前设置 `HTTP_PROXY` 或 `HTTPS_PROXY`。脚本会把代理参数传给 Gradle。
 
-### 交付产物
+## 打包产物
 
 构建成功后，`dist/` 中会生成：
 
@@ -254,19 +135,7 @@ Android 构建脚本会按以下顺序查找 SDK：
 - `EchoText-Android-v0.1.0-debug.apk`
 - `EchoText-Setup-v0.1.0.exe`
 
-### 验证情况
-
-当前 Android 方案已经完成这些验证：
-
-- 原生 Java APK 可通过 Gradle 成功构建
-- APK 可通过 `adb shell pm install` 安装到 HarmonyOS 4.2 / Android 12 兼容设备
-- 应用可在真机正常启动，不再出现之前的 loading 卡死和闪退
-- Android 访问局域网设备时不再触发 `Cleartext HTTP traffic ... not permitted`
-- Windows 桌面端中文界面不再依赖 Kivy 默认字体，可自动选择兼容的本机系统字体
-- Android fresh 启动后可以通过新的子网广播路径重新发现 Windows 端
-- Android 到 Windows 的签名消息发送已经在真机上验证通过，前提是双方 peer 状态已刷新一致
-
-### 故障排查
+## 常见问题
 
 - `python` 打开 Microsoft Store 或命中坏掉的 shim：
   运行 `.\scripts\repair_toolchain.ps1`。
@@ -276,13 +145,11 @@ Android 构建脚本会按以下顺序查找 SDK：
   确认 `.python-version` 为 `3.12`，然后执行 `uv sync --group dev`。
 - Android 构建找不到 SDK：
   设置 `ANDROID_SDK_ROOT`，或把 SDK 安装到 `%LOCALAPPDATA%\Android\Sdk`。
-- HarmonyOS 下 `adb install` 被系统拦截：
-    改用 `adb push ... /data/local/tmp/...` 再执行 `adb shell pm install -r -t ...`，或者在手机开发者选项中放行 USB 安装。
 - 设备互相发现不到：
-    确认两台设备在同一 Wi-Fi，且网络没有屏蔽本地广播。升级后请把两端都重新打开一次，新版本会同时向 `255.255.255.255` 和当前子网广播地址发送发现包。
+  确认两台设备在同一 Wi-Fi，且网络没有屏蔽本地广播。升级后请把两端都重新打开一次，新版本会同时向 `255.255.255.255` 和当前子网广播地址发送发现包。
 - 配对失败：
-    重新读取目标设备的 6 位配对码；配对码 5 分钟后会过期。如果 Windows 端来自源码运行或旧版安装包，还要确认 Windows Defender 防火墙已经允许 `EchoText.exe` 或 `python.exe` 访问本地子网。
+  重新读取目标设备的 6 位配对码；配对码 5 分钟后会过期。如果 Windows 端来自源码运行，还要确认 Windows Defender 防火墙已经允许当前进程访问本地子网。
 - Android 能接收 Windows 消息，但无法回发：
-    升级两端到最新构建后，各自重新打开一次应用，让它们重新广播当前优先使用的局域网传输端口。如果目标设备曾经重装、清缓存或更换过 device ID，请重新配对一次；新版本会在成功重配后自动清理旧的同名缓存记录。
+  升级两端到最新构建后，各自重新打开一次应用，让它们重新广播当前优先使用的局域网传输端口；必要时重新配对以刷新旧缓存。
 - Windows 桌面端中文仍显示异常：
-    安装微软雅黑、等线、黑体或 Noto Sans SC 等常见中文系统字体后重新启动 EchoText。
+  安装微软雅黑、等线、黑体或 Noto Sans SC 等常见中文系统字体后重新启动 EchoText。

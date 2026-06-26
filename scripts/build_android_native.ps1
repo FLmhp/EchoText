@@ -62,6 +62,8 @@ $distDir = Join-Path (Get-Location) "dist"
 $apkSource = Join-Path $androidProject "app\build\outputs\apk\debug\app-debug.apk"
 $apkTarget = Join-Path $distDir "EchoText-Android-v0.1.0-debug.apk"
 
+uv sync --group dev
+uv run python scripts/generate_brand_assets.py
 Set-GradleProxyArgs
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 Set-Content -LiteralPath $localProperties -Value "sdk.dir=$($sdkPath -replace '\\','\\')" -Encoding ASCII

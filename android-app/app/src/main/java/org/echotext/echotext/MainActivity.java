@@ -19,6 +19,7 @@ import androidx.appcompat.widget.SwitchCompat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -30,14 +31,16 @@ import org.echotext.echotext.model.Peer;
 import org.echotext.echotext.ui.LocaleHelper;
 
 public class MainActivity extends AppCompatActivity implements EchoTextController.Listener {
+    private static final long PAIR_CODE_REFRESH_MILLIS = 5_000L;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService requestExecutor = Executors.newSingleThreadExecutor();
-    private final Runnable refreshRunnable =
+    private final Runnable pairCodeRefreshRunnable =
             new Runnable() {
                 @Override
                 public void run() {
-                    refreshUi();
-                    handler.postDelayed(this, 2_000L);
+                    refreshPairCode();
+                    handler.postDelayed(this, PAIR_CODE_REFRESH_MILLIS);
                 }
             };
 
@@ -61,8 +64,11 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private ArrayAdapter<String> deviceAdapter;
     private ArrayAdapter<String> languageAdapter;
     private final List<Peer> displayedPeers = new ArrayList<>();
+    private final List<String> displayedPeerLabels = new ArrayList<>();
     private boolean suppressLanguageSelection;
+    private boolean suppressToggleCallbacks;
     private String lastClipboardText = "";
+    private String selectedPeerDeviceId;
 
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -99,8 +105,8 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         configureLanguageSpinner();
         configureActions();
         refreshToggles();
-        setStatus(getString(R.string.status_ready));
         refreshUi();
+        setStatus(getString(R.string.status_ready));
     }
 
     @Override
@@ -110,7 +116,9 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         if (clipboardManager != null) {
             clipboardManager.addPrimaryClipChangedListener(clipboardListener);
         }
-        handler.post(refreshRunnable);
+        refreshToggles();
+        refreshUi();
+        handler.post(pairCodeRefreshRunnable);
     }
 
     @Override
@@ -120,7 +128,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         if (clipboardManager != null) {
             clipboardManager.removePrimaryClipChangedListener(clipboardListener);
         }
-        handler.removeCallbacks(refreshRunnable);
+        handler.removeCallbacks(pairCodeRefreshRunnable);
     }
 
     @Override
@@ -145,6 +153,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
 
     @Override
     public void onPeerPaired(Peer peer) {
+        selectedPeerDeviceId = peer.deviceId;
         setStatus(getString(R.string.status_paired, peer.name));
         refreshPeerList();
     }
@@ -169,6 +178,8 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                Peer peer = selectedPeer();
+                selectedPeerDeviceId = peer == null ? null : peer.deviceId;
                 updateSelectedPeerDetails();
             }
 
@@ -250,21 +261,29 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             refreshHistory();
             setStatus(getString(R.string.status_history_cleared));
         });
-        autoSyncSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> controller.setAutoSyncEnabled(isChecked));
-        persistentHistorySwitch.setOnCheckedChangeListener(
-                (buttonView, isChecked) -> controller.setPersistentHistory(isChecked));
+        autoSyncSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!suppressToggleCallbacks) {
+                controller.setAutoSyncEnabled(isChecked);
+            }
+        });
+        persistentHistorySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!suppressToggleCallbacks) {
+                controller.setPersistentHistory(isChecked);
+            }
+        });
     }
 
     private void refreshUi() {
-        refreshPeerList();
         refreshPairCode();
+        refreshPeerList();
         refreshHistory();
-        refreshToggles();
     }
 
     private void refreshToggles() {
+        suppressToggleCallbacks = true;
         autoSyncSwitch.setChecked(controller.isAutoSyncEnabled());
         persistentHistorySwitch.setChecked(controller.isPersistentHistoryEnabled());
+        suppressToggleCallbacks = false;
     }
 
     private void refreshPairCode() {
@@ -272,26 +291,51 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         if (identity == null) {
             return;
         }
-        pairCodeText.setText(getString(R.string.pair_code_display, identity.name, identity.host, identity.port, controller.getPairCode()));
+        pairCodeText.setText(
+                getString(R.string.pair_code_display, identity.name, identity.host, identity.port, controller.getPairCode()));
     }
 
     private void refreshPeerList() {
         List<Peer> peers = controller.getPeers();
-        displayedPeers.clear();
-        deviceAdapter.clear();
-        if (peers.isEmpty()) {
-            deviceAdapter.add(getString(R.string.no_devices));
-            deviceSpinner.setEnabled(false);
+        String desiredDeviceId = selectedPeerDeviceId;
+        Peer currentlySelected = selectedPeer();
+        if (currentlySelected != null) {
+            desiredDeviceId = currentlySelected.deviceId;
+        }
+
+        if (!samePeerPresentation(peers, displayedPeers)) {
+            displayedPeers.clear();
+            displayedPeers.addAll(peers);
+            displayedPeerLabels.clear();
+            deviceAdapter.clear();
+            for (Peer peer : peers) {
+                String label = formatPeerLabel(peer);
+                displayedPeerLabels.add(label);
+                deviceAdapter.add(label);
+            }
             deviceAdapter.notifyDataSetChanged();
+        }
+
+        if (peers.isEmpty()) {
+            selectedPeerDeviceId = null;
+            deviceSpinner.setEnabled(false);
+            if (deviceAdapter.getCount() == 0) {
+                deviceAdapter.add(getString(R.string.no_devices));
+                deviceAdapter.notifyDataSetChanged();
+            }
+            deviceSpinner.setSelection(0);
             updateSelectedPeerDetails();
             return;
         }
-        displayedPeers.addAll(peers);
-        for (Peer peer : peers) {
-            deviceAdapter.add(formatPeerLabel(peer));
-        }
+
         deviceSpinner.setEnabled(true);
-        deviceAdapter.notifyDataSetChanged();
+        int selectedIndex = indexOfDeviceId(desiredDeviceId);
+        if (selectedIndex < 0) {
+            selectedIndex = 0;
+        }
+        deviceSpinner.setSelection(selectedIndex, false);
+        Peer selected = selectedPeer();
+        selectedPeerDeviceId = selected == null ? null : selected.deviceId;
         updateSelectedPeerDetails();
     }
 
@@ -326,6 +370,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             try {
                 Peer paired = controller.pairWithPeer(peer, pairCode);
                 handler.post(() -> {
+                    selectedPeerDeviceId = paired.deviceId;
                     setStatus(getString(R.string.status_paired, paired.name));
                     refreshPeerList();
                     setRequestButtonsEnabled(true);
@@ -350,6 +395,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             setStatus(getString(R.string.status_enter_message));
             return;
         }
+        selectedPeerDeviceId = peer.deviceId;
         setRequestButtonsEnabled(false);
         requestExecutor.execute(() -> {
             try {
@@ -430,10 +476,44 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             return;
         }
         String suffix = peer.sharedSecret == null ? "" : getString(R.string.paired_suffix);
-        peerDetailText.setText(peer.host + ":" + peer.port + " · " + peer.platform + suffix);
+        peerDetailText.setText(peer.name + " · " + peer.host + ":" + peer.port + " · " + peer.platform + suffix);
     }
 
     private String formatPeerLabel(Peer peer) {
-        return peer.name;
+        if (peer.name.length() <= 24) {
+            return peer.name;
+        }
+        return peer.name.substring(0, 21) + "...";
+    }
+
+    private boolean samePeerPresentation(List<Peer> first, List<Peer> second) {
+        if (first.size() != second.size()) {
+            return false;
+        }
+        for (int index = 0; index < first.size(); index++) {
+            Peer left = first.get(index);
+            Peer right = second.get(index);
+            if (!Objects.equals(left.deviceId, right.deviceId)
+                    || !Objects.equals(left.name, right.name)
+                    || !Objects.equals(left.platform, right.platform)
+                    || !Objects.equals(left.host, right.host)
+                    || left.port != right.port
+                    || !Objects.equals(left.sharedSecret, right.sharedSecret)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private int indexOfDeviceId(String deviceId) {
+        if (deviceId == null) {
+            return -1;
+        }
+        for (int index = 0; index < displayedPeers.size(); index++) {
+            if (deviceId.equals(displayedPeers.get(index).deviceId)) {
+                return index;
+            }
+        }
+        return -1;
     }
 }

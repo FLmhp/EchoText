@@ -17,8 +17,13 @@ DISCOVERY_MAGIC = "ECHOTEXT_DISCOVERY_V1"
 class DiscoveryService:
     """UDP broadcaster and listener for LAN peers."""
 
-    def __init__(self, identity_provider: Callable[[], DeviceIdentity]) -> None:
+    def __init__(
+        self,
+        identity_provider: Callable[[], DeviceIdentity],
+        on_peers_changed: Callable[[], None] | None = None,
+    ) -> None:
         self.identity_provider = identity_provider
+        self.on_peers_changed = on_peers_changed
         self._peers: dict[str, Peer] = {}
         self._stop_event = threading.Event()
         self._threads: list[threading.Thread] = []
@@ -91,7 +96,7 @@ class DiscoveryService:
             return
 
         host = source_host if should_prefer_source_host(identity.host, source_host) else identity.host
-        self._peers[identity.device_id] = Peer(
+        peer = Peer(
             device_id=identity.device_id,
             name=identity.name,
             platform=identity.platform,
@@ -99,3 +104,9 @@ class DiscoveryService:
             port=identity.port,
             last_seen=time.time(),
         )
+        existing = self._peers.get(peer.device_id)
+        self._peers[peer.device_id] = peer
+        if self.on_peers_changed is None:
+            return
+        if existing is None or existing != peer:
+            self.on_peers_changed()

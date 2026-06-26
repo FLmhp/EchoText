@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 uv sync --group dev
+uv run python scripts/generate_brand_assets.py
 uv run pyinstaller --clean --noconfirm packaging/echotext_pyinstaller.spec
 if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller failed with exit code $LASTEXITCODE"

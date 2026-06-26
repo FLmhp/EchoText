@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from echotext.models import Peer
@@ -102,3 +103,34 @@ def test_save_peer_prunes_stale_duplicate_identity(tmp_path: Path) -> None:
 
     assert list(peers) == ["new-phone"]
     assert peers["new-phone"].shared_secret == "new-secret"
+
+
+def test_runtime_persists_auto_sync_preference(tmp_path: Path) -> None:
+    runtime = EchoTextRuntime(settings=SettingsStore(tmp_path))
+
+    assert runtime.auto_sync_enabled() is False
+
+    runtime.set_auto_sync_enabled(True)
+
+    assert runtime.auto_sync_enabled() is True
+
+
+def test_discovery_callback_fires_for_new_peer(tmp_path: Path) -> None:
+    changes: list[str] = []
+    runtime = EchoTextRuntime(settings=SettingsStore(tmp_path), on_peers_changed=lambda: changes.append("changed"))
+    identity = runtime.identity()
+    payload = {
+        "magic": "ECHOTEXT_DISCOVERY_V1",
+        "device": {
+            "device_id": "phone",
+            "name": "Phone",
+            "platform": "Android",
+            "host": "192.168.3.7",
+            "port": 48735,
+        },
+    }
+
+    runtime.discovery._handle_packet(json.dumps(payload).encode("utf-8"), "192.168.3.7")  # noqa: SLF001
+
+    assert identity.device_id != "phone"
+    assert changes == ["changed"]

@@ -210,9 +210,7 @@ def _normalize_path(path: str | Path) -> str:
 
 def _parse_netsh_rules(output: str) -> list[FirewallRuleInfo]:
     blocks = [
-        block
-        for block in re.split(r"\r?\n\s*\r?\n", output.strip())
-        if "Rule Name:" in block or "规则名称:" in block
+        block for block in re.split(r"\r?\n\s*\r?\n", output.strip()) if "Rule Name:" in block or "规则名称:" in block
     ]
     rules: list[FirewallRuleInfo] = []
     for block in blocks:

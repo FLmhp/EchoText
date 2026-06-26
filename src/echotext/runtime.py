@@ -21,6 +21,7 @@ class EchoTextRuntime:
         settings: SettingsStore | None = None,
         on_message: Callable[[HistoryEntry], None] | None = None,
         on_peer_paired: Callable[[Peer], None] | None = None,
+        on_peers_changed: Callable[[], None] | None = None,
     ) -> None:
         self.settings = settings or SettingsStore()
         self.pair_code = PairCode()
@@ -32,6 +33,7 @@ class EchoTextRuntime:
         self.client = TransportClient()
         self._on_message = on_message
         self._on_peer_paired = on_peer_paired
+        self._on_peers_changed = on_peers_changed
         self.server = TransportServer(
             self.identity,
             self.pair_code.matches,
@@ -39,7 +41,7 @@ class EchoTextRuntime:
             self._handle_message,
             self._handle_peer_paired,
         )
-        self.discovery = DiscoveryService(self.identity)
+        self.discovery = DiscoveryService(self.identity, self._handle_peers_changed)
 
     def start(self) -> None:
         """Start network services."""
@@ -139,6 +141,16 @@ class EchoTextRuntime:
 
         self.history.clear()
 
+    def set_auto_sync_enabled(self, enabled: bool) -> None:
+        """Persist the foreground auto sync setting."""
+
+        self.settings.set_auto_sync_enabled(enabled)
+
+    def auto_sync_enabled(self) -> bool:
+        """Return the foreground auto sync setting."""
+
+        return self.settings.auto_sync_enabled()
+
     def _handle_message(self, message: TextMessage, peer: Peer) -> None:
         entry = HistoryEntry("received", peer.name, message.text, message.created_at, message.message_id)
         self.history.add(entry)
@@ -149,6 +161,10 @@ class EchoTextRuntime:
         self._save_peer(peer)
         if self._on_peer_paired is not None:
             self._on_peer_paired(peer)
+
+    def _handle_peers_changed(self) -> None:
+        if self._on_peers_changed is not None:
+            self._on_peers_changed()
 
     def _save_peer(self, peer: Peer) -> None:
         self._paired_peers[peer.device_id] = peer
