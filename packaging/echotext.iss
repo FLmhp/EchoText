@@ -16,8 +16,9 @@ OutputBaseFilename=EchoText-Setup-v0.1.0
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=admin
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -33,5 +34,8 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall add rule name=""EchoText LAN"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private"; Flags: runhidden
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall delete rule name=""EchoText LAN"""; Flags: runhidden; RunOnceId: "RemoveEchoTextLanFirewallRule"

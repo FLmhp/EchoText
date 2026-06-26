@@ -17,6 +17,13 @@
     <string name="status_received">已接收：%1$s</string>
     <string name="status_failed">失败：%1$s</string>
     <string name="status_pair_required">请先与该设备完成配对</string>
+    <string name="status_select_device">请先选择设备</string>
+    <string name="status_enter_pair_code">请输入目标配对码</string>
+    <string name="status_enter_message">请先输入消息</string>
+    <string name="status_nothing_to_copy">当前没有可复制的消息</string>
+    <string name="status_history_cleared">历史记录已清空</string>
+    <string name="status_clipboard_unavailable">剪贴板不可用</string>
+    <string name="status_clipboard_empty">剪贴板为空</string>
     <string name="no_devices">未发现设备</string>
     <string name="pair_code_display">%1$s · %2$s:%3$d · 配对码：%4$s</string>
     <string name="paired_suffix"> · 已配对</string>

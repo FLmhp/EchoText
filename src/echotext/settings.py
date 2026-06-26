@@ -106,7 +106,11 @@ class SettingsStore:
     def language(self) -> str:
         """Return the UI language preference."""
 
-        return str(self.data.get("language", "auto"))
+        if "language" in self.data:
+            return str(self.data["language"])
+        if platform.system().lower() == "windows":
+            return "zh"
+        return "auto"
 
     def set_language(self, language: str) -> None:
         """Persist the UI language preference."""

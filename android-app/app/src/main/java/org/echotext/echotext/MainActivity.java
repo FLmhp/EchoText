@@ -199,17 +199,31 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
 
         refreshButton.setOnClickListener(view -> refreshUi());
         pairButton.setOnClickListener(view -> pairSelectedPeer());
-        pasteButton.setOnClickListener(view -> messageInput.setText(readClipboardText()));
+        pasteButton.setOnClickListener(view -> {
+            String clipboardText = readClipboardText();
+            if (clipboardManager == null) {
+                setStatus(getString(R.string.status_clipboard_unavailable));
+                return;
+            }
+            if (clipboardText.trim().isEmpty()) {
+                setStatus(getString(R.string.status_clipboard_empty));
+                return;
+            }
+            messageInput.setText(clipboardText);
+        });
         sendButton.setOnClickListener(view -> sendSelectedText());
         copyLatestButton.setOnClickListener(view -> {
             String latest = controller.getLatestText();
             if (!latest.trim().isEmpty()) {
                 copyToClipboard(latest);
+            } else {
+                setStatus(getString(R.string.status_nothing_to_copy));
             }
         });
         clearButton.setOnClickListener(view -> {
             controller.clearHistory();
             refreshHistory();
+            setStatus(getString(R.string.status_history_cleared));
         });
         autoSyncSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> controller.setAutoSyncEnabled(isChecked));
         persistentHistorySwitch.setOnCheckedChangeListener(
@@ -272,10 +286,16 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private void pairSelectedPeer() {
         Peer peer = selectedPeer();
         if (peer == null) {
+            setStatus(getString(R.string.status_select_device));
+            return;
+        }
+        String pairCode = pairCodeInput.getText().toString().trim();
+        if (pairCode.isEmpty()) {
+            setStatus(getString(R.string.status_enter_pair_code));
             return;
         }
         try {
-            Peer paired = controller.pairWithPeer(peer, pairCodeInput.getText().toString());
+            Peer paired = controller.pairWithPeer(peer, pairCode);
             setStatus(getString(R.string.status_paired, paired.name));
             refreshPeerList();
         } catch (Exception exception) {
@@ -286,10 +306,12 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private void sendSelectedText() {
         Peer peer = selectedPeer();
         if (peer == null) {
+            setStatus(getString(R.string.status_select_device));
             return;
         }
         String text = messageInput.getText().toString().trim();
         if (text.isEmpty()) {
+            setStatus(getString(R.string.status_enter_message));
             return;
         }
         try {
@@ -315,6 +337,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
 
     private void copyToClipboard(String text) {
         if (clipboardManager == null) {
+            setStatus(getString(R.string.status_clipboard_unavailable));
             return;
         }
         lastClipboardText = text;

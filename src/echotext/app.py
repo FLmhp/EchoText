@@ -18,6 +18,7 @@ from kivy.utils import platform as kivy_platform
 from echotext.i18n import translator
 from echotext.models import HistoryEntry, Peer
 from echotext.runtime import EchoTextRuntime
+from echotext.settings import SettingsStore
 from echotext.transport import TransportError
 
 
@@ -30,8 +31,10 @@ class EchoTextApp(App):
         """Build the main application surface."""
 
         self.runtime: EchoTextRuntime | None = None
-        self.translate = translator("auto")
+        self.language_preference = SettingsStore().language()
+        self.translate = translator(self.language_preference)
         self.peer_by_label: dict[str, Peer] = {}
+        self.language_labels: dict[str, str] = {}
         self.last_clipboard_text = ""
         self.latest_text = ""
         self._clipboard_available = True
@@ -69,6 +72,14 @@ class EchoTextApp(App):
         self.history_switch.bind(active=self._toggle_persistent_history)
         settings_row.add_widget(self.history_switch)
         root.add_widget(settings_row)
+
+        language_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
+        self.language_label = Label()
+        language_row.add_widget(self.language_label)
+        self.language_spinner = Spinner(text="", values=[], size_hint_x=0.45)
+        self.language_spinner.bind(text=self._set_language_preference)
+        language_row.add_widget(self.language_spinner)
+        root.add_widget(language_row)
 
         self.message_input = TextInput(multiline=True, size_hint_y=0.3)
         root.add_widget(self.message_input)
@@ -117,7 +128,8 @@ class EchoTextApp(App):
             return
 
         self.runtime = runtime
-        self.translate = translator(self.runtime.settings.language())
+        self.language_preference = self.runtime.settings.language()
+        self.translate = translator(self.language_preference)
         self.history_switch.active = self.runtime.settings.persistent_history_enabled()
         self._apply_translations()
         self._refresh_pair_code()
@@ -168,9 +180,14 @@ class EchoTextApp(App):
             return
         peer = self._selected_peer()
         if peer is None:
+            self._set_status(self.translate("status_select_device"))
+            return
+        pair_code = self.pair_code_input.text.strip()
+        if not pair_code:
+            self._set_status(self.translate("status_enter_pair_code"))
             return
         try:
-            paired = self.runtime.pair_with_peer(peer, self.pair_code_input.text)
+            paired = self.runtime.pair_with_peer(peer, pair_code)
         except TransportError as exc:
             self._set_status(f"{self.translate('status_failed')}: {exc}")
             return
@@ -182,7 +199,11 @@ class EchoTextApp(App):
             return
         peer = self._selected_peer()
         text = self.message_input.text.strip()
-        if peer is None or not text:
+        if peer is None:
+            self._set_status(self.translate("status_select_device"))
+            return
+        if not text:
+            self._set_status(self.translate("status_enter_message"))
             return
         try:
             entry = self.runtime.send_text(peer, text)
@@ -194,11 +215,22 @@ class EchoTextApp(App):
         self._refresh_history()
 
     def _paste_clipboard(self, *_args: object) -> None:
-        self.message_input.text = self._clipboard_paste()
+        text = self._clipboard_paste()
+        if not self._clipboard_available:
+            self._set_status(self.translate("status_clipboard_unavailable"))
+            return
+        if not text:
+            self._set_status(self.translate("status_clipboard_empty"))
+            return
+        self.message_input.text = text
 
     def _copy_latest(self, *_args: object) -> None:
         if self.latest_text:
             self._clipboard_copy(self.latest_text)
+            if not self._clipboard_available:
+                self._set_status(self.translate("status_clipboard_unavailable"))
+        else:
+            self._set_status(self.translate("status_nothing_to_copy"))
 
     def _clear_history(self, *_args: object) -> None:
         if self.runtime is None:
@@ -206,6 +238,7 @@ class EchoTextApp(App):
         self.runtime.clear_history()
         self.latest_text = ""
         self._refresh_history()
+        self._set_status(self.translate("status_history_cleared"))
 
     def _toggle_persistent_history(self, _switch: Switch, active: bool) -> None:
         if self.runtime is None:
@@ -247,6 +280,20 @@ class EchoTextApp(App):
     def _selected_peer(self) -> Peer | None:
         return self.peer_by_label.get(self.device_spinner.text)
 
+    def _set_language_preference(self, _spinner: Spinner, label: str) -> None:
+        code = next((key for key, value in self.language_labels.items() if value == label), None)
+        if code is None or code == self.language_preference:
+            return
+        self.language_preference = code
+        if self.runtime is not None:
+            self.runtime.settings.set_language(code)
+        self.translate = translator(code)
+        self._apply_translations()
+        self._refresh_pair_code()
+        self._refresh_peers()
+        self._refresh_history()
+        self._set_status(self.translate("status_ready"))
+
     def _apply_translations(self) -> None:
         self.title = self.translate("title")
         self.refresh_button.text = self.translate("refresh")
@@ -254,11 +301,22 @@ class EchoTextApp(App):
         self.pair_code_input.hint_text = self.translate("pair_code_hint")
         self.auto_sync_label.text = self.translate("auto_sync")
         self.history_setting_label.text = self.translate("persistent_history")
+        self.language_label.text = self.translate("language")
         self.message_input.hint_text = self.translate("message")
         self.paste_button.text = self.translate("paste")
         self.send_button.text = self.translate("send")
         self.copy_latest_button.text = self.translate("copy_latest")
         self.clear_button.text = self.translate("clear")
+        self.language_labels = {
+            "auto": self.translate("language_auto"),
+            "en": self.translate("language_english"),
+            "zh": self.translate("language_chinese"),
+        }
+        self.language_spinner.values = tuple(self.language_labels.values())
+        self.language_spinner.text = self.language_labels.get(
+            self.language_preference,
+            self.language_labels["auto"],
+        )
         if not self.device_spinner.values:
             self.device_spinner.text = self.translate("no_devices")
 
@@ -295,7 +353,6 @@ class EchoTextApp(App):
         except Exception as exc:
             Logger.warning(f"EchoText failed to hide Android loading screen: {exc}")
 
-    @staticmethod
-    def _peer_label(peer: Peer) -> str:
-        paired = " · paired" if peer.shared_secret else ""
+    def _peer_label(self, peer: Peer) -> str:
+        paired = self.translate("paired_suffix") if peer.shared_secret else ""
         return f"{peer.name} ({peer.platform}) {peer.host}:{peer.port}{paired}"

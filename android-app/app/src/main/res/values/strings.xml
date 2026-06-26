@@ -17,6 +17,13 @@
     <string name="status_received">Received: %1$s</string>
     <string name="status_failed">Failed: %1$s</string>
     <string name="status_pair_required">Pair with the device before sending text</string>
+    <string name="status_select_device">Select a device first</string>
+    <string name="status_enter_pair_code">Enter the target pair code</string>
+    <string name="status_enter_message">Enter a message first</string>
+    <string name="status_nothing_to_copy">No message available to copy</string>
+    <string name="status_history_cleared">History cleared</string>
+    <string name="status_clipboard_unavailable">Clipboard is unavailable</string>
+    <string name="status_clipboard_empty">Clipboard is empty</string>
     <string name="no_devices">No devices discovered</string>
     <string name="pair_code_display">%1$s · %2$s:%3$d · Pair code: %4$s</string>
     <string name="paired_suffix"> · paired</string>
