@@ -271,7 +271,8 @@ class EchoTextApp(App):
         text_input.hint_text_color = COLOR_TEXT_MUTED
         text_input.font_size = "15sp"
         text_input.padding = [dp(12), dp(12), dp(12), dp(12)]
-        text_input.minimum_height = min_height
+        if text_input.size_hint_y is None:
+            text_input.height = max(float(text_input.height), float(min_height))
 
     def _sync_label_text_size(self, label: Label, *_args: object) -> None:
         label.text_size = (label.width, None)
