@@ -24,7 +24,6 @@ from echotext.desktop_env import diagnose_desktop_environment, select_windows_fo
 from echotext.i18n import translator
 from echotext.models import EnvironmentDiagnosis, HistoryEntry, Peer
 from echotext.runtime import EchoTextRuntime
-from echotext.settings import SettingsStore
 from echotext.transport import TransportError
 
 COLOR_BG = (0.03, 0.07, 0.12, 1.0)
@@ -48,10 +47,8 @@ class EchoTextApp(App):
         """Build the main application surface."""
 
         self.runtime: EchoTextRuntime | None = None
-        self.language_preference = SettingsStore().language()
-        self.translate = translator(self.language_preference)
+        self.translate = translator("zh")
         self.peer_by_label: dict[str, Peer] = {}
-        self.language_labels: dict[str, str] = {}
         self.last_clipboard_text = ""
         self.latest_text = ""
         self.selected_peer_id: str | None = None
@@ -134,33 +131,15 @@ class EchoTextApp(App):
         root.add_widget(pair_row)
 
         settings_row = BoxLayout(size_hint_y=None, height=dp(54), spacing=dp(10))
-        settings_row.add_widget(self._build_spacer())
         settings_row.add_widget(
-            self._build_toggle_group("auto_sync_label", "auto_sync_switch", self._toggle_auto_sync, width_ratio=0.28)
+            self._build_toggle_group("auto_sync_label", "auto_sync_switch", self._toggle_auto_sync, width_ratio=0.5)
         )
-        settings_row.add_widget(self._build_spacer(0.08))
         settings_row.add_widget(
             self._build_toggle_group(
-                "history_setting_label",
-                "history_switch",
-                self._toggle_persistent_history,
-                width_ratio=0.28,
+                "history_setting_label", "history_switch", self._toggle_persistent_history, width_ratio=0.5
             )
         )
-        settings_row.add_widget(self._build_spacer())
         root.add_widget(settings_row)
-
-        language_row = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
-        language_row.add_widget(self._build_spacer())
-        self.language_label = Label(size_hint_x=0.12, color=COLOR_TEXT_MUTED, font_size="15sp", halign="center")
-        self.language_label.bind(size=self._sync_label_text_size)
-        language_row.add_widget(self.language_label)
-        self.language_spinner = Spinner(text="", values=[], size_hint_x=(1 / 3))
-        self._style_spinner(self.language_spinner)
-        self.language_spinner.bind(text=self._set_language_preference)
-        language_row.add_widget(self.language_spinner)
-        language_row.add_widget(self._build_spacer())
-        root.add_widget(language_row)
 
         self.message_input = TextInput(multiline=True, size_hint_y=None, height=dp(170))
         self._style_text_input(self.message_input, min_height=dp(170))
@@ -216,8 +195,7 @@ class EchoTextApp(App):
             return
 
         self.runtime = runtime
-        self.language_preference = runtime.settings.language()
-        self.translate = translator(self.language_preference)
+        self.translate = translator("zh")
         self.auto_sync_switch.active = runtime.auto_sync_enabled()
         self.history_switch.active = runtime.settings.persistent_history_enabled()
         self._apply_translations()
@@ -249,10 +227,6 @@ class EchoTextApp(App):
         group.add_widget(toggle)
         wrapper.add_widget(group)
         return wrapper
-
-    def _build_spacer(self, width_ratio: float = 0.18) -> BoxLayout:
-        spacer = BoxLayout(size_hint_x=width_ratio)
-        return spacer
 
     def _install_root_background(self, widget: BoxLayout) -> None:
         with widget.canvas.before:
@@ -515,21 +489,6 @@ class EchoTextApp(App):
         paired = self.translate("paired_suffix") if peer.shared_secret else ""
         self.peer_detail_label.text = f"{peer.name} · {peer.host}:{peer.port} · {peer.platform}{paired}"
 
-    def _set_language_preference(self, _spinner: Spinner, label: str) -> None:
-        code = next((key for key, value in self.language_labels.items() if value == label), None)
-        if code is None or code == self.language_preference:
-            return
-        self.language_preference = code
-        if self.runtime is not None:
-            self.runtime.settings.set_language(code)
-        self.translate = translator(code)
-        self._apply_translations()
-        self._refresh_environment_diagnosis()
-        self._refresh_pair_code()
-        self._refresh_peers()
-        self._refresh_history()
-        self._set_status(self.translate("status_ready"))
-
     def _apply_translations(self) -> None:
         self.title = self.translate("title")
         self.refresh_button.text = self.translate("refresh")
@@ -537,19 +496,11 @@ class EchoTextApp(App):
         self.pair_code_input.hint_text = self.translate("pair_code_hint")
         self.auto_sync_label.text = self.translate("auto_sync")
         self.history_setting_label.text = self.translate("persistent_history")
-        self.language_label.text = self.translate("language")
         self.message_input.hint_text = self.translate("message")
         self.paste_button.text = self.translate("paste")
         self.send_button.text = self.translate("send")
         self.copy_latest_button.text = self.translate("copy_latest")
         self.clear_button.text = self.translate("clear")
-        self.language_labels = {
-            "auto": self.translate("language_auto"),
-            "en": self.translate("language_english"),
-            "zh": self.translate("language_chinese"),
-        }
-        self.language_spinner.values = tuple(self.language_labels.values())
-        self.language_spinner.text = self.language_labels.get(self.language_preference, self.language_labels["auto"])
         if not self.device_spinner.values:
             self.device_spinner.text = self.translate("no_devices")
         self._render_environment_diagnosis()

@@ -180,14 +180,6 @@ public class EchoTextController {
         return settings.isAutoSyncEnabled();
     }
 
-    public synchronized void setLanguagePreference(String language) {
-        settings.setLanguagePreference(language);
-    }
-
-    public String getLanguagePreference() {
-        return settings.getLanguagePreference();
-    }
-
     public synchronized void clearHistory() {
         latestText = "";
         historyStore.clear();

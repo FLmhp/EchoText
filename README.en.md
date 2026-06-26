@@ -35,6 +35,7 @@
 - Clipboard workflow: paste, send, copy latest text, and optional foreground auto sync
 - History: in-memory by default with optional local persistence
 - Branding: one shared icon set for Android launcher assets, Windows EXE, the Kivy window, and the installer
+- App language: both the desktop and Android apps now ship with a fixed Simplified Chinese UI and no in-app language switch
 
 The current Android deliverable comes from the native project in [`android-app/`](/C:/Users/SoloEternity/Documents/Code/EchoText/android-app). The old Buildozer path remains only as legacy context and is no longer the recommended APK delivery route.
 
@@ -57,7 +58,7 @@ Keep both devices on the same LAN. The Windows installer automatically adds a `L
 5. Paste or type text, then press `Send`.
 6. Received text is written to the history panel and can be copied back with one click.
 
-Foreground auto sync mirrors clipboard changes only while the app remains open in the foreground.
+Foreground auto sync mirrors clipboard changes only while the app remains open in the foreground. The current app UI is fixed to Simplified Chinese.
 
 ## Development
 

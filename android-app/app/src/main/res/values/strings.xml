@@ -8,7 +8,6 @@
     <string name="clear">Clear</string>
     <string name="auto_sync">Foreground auto sync</string>
     <string name="persistent_history">Save local history</string>
-    <string name="language">Language</string>
     <string name="message">Message</string>
     <string name="pair_code_hint">Target pair code</string>
     <string name="status_ready">Ready</string>
@@ -37,7 +36,4 @@
     <string name="history_format">%1$s %2$s: %3$s</string>
     <string name="history_sent_marker">&gt;&gt;</string>
     <string name="history_received_marker">&lt;&lt;</string>
-    <string name="language_auto">System</string>
-    <string name="language_english">English</string>
-    <string name="language_chinese">中文</string>
 </resources>

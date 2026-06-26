@@ -18,7 +18,6 @@ public class SettingsStore {
 
     private static final String KEY_DEVICE_ID = "device_id";
     private static final String KEY_DEVICE_NAME = "device_name";
-    private static final String KEY_LANGUAGE = "language";
     private static final String KEY_PERSISTENT_HISTORY = "persistent_history";
     private static final String KEY_AUTO_SYNC = "auto_sync";
     private static final String KEY_PEERS = "peers";
@@ -99,18 +98,6 @@ public class SettingsStore {
 
     public void setAutoSyncEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_AUTO_SYNC, enabled).apply();
-    }
-
-    public String getLanguagePreference() {
-        return preferences.getString(KEY_LANGUAGE, "auto");
-    }
-
-    public void setLanguagePreference(String language) {
-        preferences.edit().putString(KEY_LANGUAGE, language).apply();
-    }
-
-    public static String peekLanguagePreference(Context context) {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_LANGUAGE, "auto");
     }
 
     private static String defaultDeviceName() {

@@ -17,7 +17,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -25,7 +24,6 @@ import java.util.concurrent.Executors;
 
 import org.echotext.echotext.core.EchoTextController;
 import org.echotext.echotext.core.FailureStatusMapper;
-import org.echotext.echotext.core.SettingsStore;
 import org.echotext.echotext.model.HistoryEntry;
 import org.echotext.echotext.model.Peer;
 import org.echotext.echotext.ui.LocaleHelper;
@@ -52,7 +50,6 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private TextView pairCodeText;
     private TextView peerDetailText;
     private Spinner deviceSpinner;
-    private Spinner languageSpinner;
     private EditText pairCodeInput;
     private EditText messageInput;
     private SwitchCompat autoSyncSwitch;
@@ -62,17 +59,15 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private Button sendButton;
 
     private ArrayAdapter<String> deviceAdapter;
-    private ArrayAdapter<String> languageAdapter;
     private final List<Peer> displayedPeers = new ArrayList<>();
     private final List<String> displayedPeerLabels = new ArrayList<>();
-    private boolean suppressLanguageSelection;
     private boolean suppressToggleCallbacks;
     private String lastClipboardText = "";
     private String selectedPeerDeviceId;
 
     @Override
     protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(LocaleHelper.wrap(newBase, SettingsStore.peekLanguagePreference(newBase)));
+        super.attachBaseContext(LocaleHelper.wrap(newBase, "zh"));
     }
 
     @Override
@@ -102,7 +97,6 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
                     sendSelectedText();
                 };
         bindViews();
-        configureLanguageSpinner();
         configureActions();
         refreshToggles();
         refreshUi();
@@ -163,7 +157,6 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         pairCodeText = findViewById(R.id.pair_code_text);
         peerDetailText = findViewById(R.id.peer_detail_text);
         deviceSpinner = findViewById(R.id.device_spinner);
-        languageSpinner = findViewById(R.id.language_spinner);
         pairCodeInput = findViewById(R.id.pair_code_input);
         messageInput = findViewById(R.id.message_input);
         autoSyncSwitch = findViewById(R.id.auto_sync_switch);
@@ -187,43 +180,6 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             public void onNothingSelected(android.widget.AdapterView<?> parent) {
                 updateSelectedPeerDetails();
             }
-        });
-    }
-
-    private void configureLanguageSpinner() {
-        languageAdapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                Arrays.asList(
-                        getString(R.string.language_auto),
-                        getString(R.string.language_english),
-                        getString(R.string.language_chinese)));
-        languageAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        languageSpinner.setAdapter(languageAdapter);
-
-        suppressLanguageSelection = true;
-        languageSpinner.setSelection(languageIndex(controller.getLanguagePreference()));
-        suppressLanguageSelection = false;
-
-        languageSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
-                if (suppressLanguageSelection) {
-                    return;
-                }
-                String selected = switch (position) {
-                    case 1 -> "en";
-                    case 2 -> "zh";
-                    default -> "auto";
-                };
-                if (!selected.equals(controller.getLanguagePreference())) {
-                    controller.setLanguagePreference(selected);
-                    recreate();
-                }
-            }
-
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
     }
 
@@ -459,14 +415,6 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         }
         CharSequence text = clip.getItemAt(0).coerceToText(this);
         return text == null ? "" : text.toString();
-    }
-
-    private int languageIndex(String preference) {
-        return switch (preference) {
-            case "en" -> 1;
-            case "zh" -> 2;
-            default -> 0;
-        };
     }
 
     private void updateSelectedPeerDetails() {

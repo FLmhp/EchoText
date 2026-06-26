@@ -8,7 +8,6 @@
     <string name="clear">清空</string>
     <string name="auto_sync">前台自动同步</string>
     <string name="persistent_history">保存本地历史</string>
-    <string name="language">语言</string>
     <string name="message">消息</string>
     <string name="pair_code_hint">目标配对码</string>
     <string name="status_ready">就绪</string>
@@ -37,7 +36,4 @@
     <string name="history_format">%1$s %2$s：%3$s</string>
     <string name="history_sent_marker">&gt;&gt;</string>
     <string name="history_received_marker">&lt;&lt;</string>
-    <string name="language_auto">跟随系统</string>
-    <string name="language_english">English</string>
-    <string name="language_chinese">中文</string>
 </resources>

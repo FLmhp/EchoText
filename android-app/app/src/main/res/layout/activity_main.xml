@@ -144,29 +144,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="center"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:text="@string/language"
-                android:textColor="@color/echo_text_muted"
-                android:textSize="15sp" />
-
-            <Spinner
-                android:id="@+id/language_spinner"
-                android:layout_width="168dp"
-                android:layout_height="50dp"
-                android:backgroundTint="@color/echo_surface_alt"
-                android:popupBackground="@color/echo_surface_alt" />
-        </LinearLayout>
-
         <EditText
             android:id="@+id/message_input"
             android:layout_width="match_parent"
