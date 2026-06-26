@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">EchoText</string>
+    <string name="refresh">刷新</string>
+    <string name="pair">配对</string>
+    <string name="paste">粘贴</string>
+    <string name="send">发送</string>
+    <string name="copy_latest">复制最新</string>
+    <string name="clear">清空</string>
+    <string name="auto_sync">前台自动同步</string>
+    <string name="persistent_history">保存本地历史</string>
+    <string name="language">语言</string>
+    <string name="message">消息</string>
+    <string name="pair_code_hint">目标配对码</string>
+    <string name="status_ready">就绪</string>
+    <string name="status_sent">已发送：%1$s</string>
+    <string name="status_paired">已配对：%1$s</string>
+    <string name="status_received">已接收：%1$s</string>
+    <string name="status_failed">失败：%1$s</string>
+    <string name="status_pair_required">请先与该设备完成配对</string>
+    <string name="no_devices">未发现设备</string>
+    <string name="pair_code_display">%1$s · %2$s:%3$d · 配对码：%4$s</string>
+    <string name="paired_suffix"> · 已配对</string>
+    <string name="history_format">%1$s %2$s：%3$s</string>
+    <string name="history_sent_marker">&gt;&gt;</string>
+    <string name="history_received_marker">&lt;&lt;</string>
+    <string name="language_auto">跟随系统</string>
+    <string name="language_english">English</string>
+    <string name="language_chinese">中文</string>
+</resources>

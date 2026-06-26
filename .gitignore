@@ -14,3 +14,6 @@ dist/
 *.egg-info/
 local.properties
 build-android.log
+android-app/.gradle/
+android-app/app/build/
+android-app/local.properties
