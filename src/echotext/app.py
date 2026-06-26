@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from functools import partial
 from pathlib import Path
 
@@ -42,6 +43,8 @@ class EchoTextApp(App):
         self.latest_text = ""
         self._clipboard_available = True
         self.environment_diagnosis = EnvironmentDiagnosis(True, True, False, "none", "", "")
+        self._last_pair_refresh = 0.0
+        self._last_peer_refresh = 0.0
 
         root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(8))
 
@@ -156,8 +159,11 @@ class EchoTextApp(App):
     def _tick(self, _dt: float) -> None:
         if self.runtime is None:
             return
-        self._refresh_pair_code()
-        self._refresh_peers()
+        now = time.monotonic()
+        if now - self._last_pair_refresh >= 5:
+            self._refresh_pair_code()
+        if now - self._last_peer_refresh >= 2:
+            self._refresh_peers()
         if self.auto_sync_switch.active:
             current = self._clipboard_paste()
             if current and current != self.last_clipboard_text:
@@ -166,30 +172,40 @@ class EchoTextApp(App):
                 self._send_text()
 
     def _refresh_pair_code(self) -> None:
+        self._last_pair_refresh = time.monotonic()
         if self.runtime is None:
-            self.pair_label.text = ""
+            if self.pair_label.text:
+                self.pair_label.text = ""
             return
         identity = self.runtime.identity()
         code = self.runtime.pair_code.code
-        self.pair_label.text = (
-            f"{identity.name} · {identity.host}:{identity.port} · {self.translate('pair_code')}: {code}"
-        )
+        text = f"{identity.name} · {identity.host}:{identity.port} · {self.translate('pair_code')}: {code}"
+        if self.pair_label.text != text:
+            self.pair_label.text = text
 
     def _refresh_peers(self, *_args: object) -> None:
+        self._last_peer_refresh = time.monotonic()
         if self.runtime is None:
-            self.device_spinner.values = []
-            self.device_spinner.text = self.translate("no_devices")
+            if self.device_spinner.values:
+                self.device_spinner.values = []
+            no_devices = self.translate("no_devices")
+            if self.device_spinner.text != no_devices:
+                self.device_spinner.text = no_devices
             return
         peers = self.runtime.peers()
         self.peer_by_label = {
             self._peer_label(peer): peer for peer in peers if peer.device_id != self.runtime.identity().device_id
         }
-        values = list(self.peer_by_label)
-        self.device_spinner.values = values
-        if values and self.device_spinner.text not in values:
-            self.device_spinner.text = values[0]
-        if not values:
-            self.device_spinner.text = self.translate("no_devices")
+        values = tuple(self.peer_by_label)
+        if tuple(self.device_spinner.values) != values:
+            self.device_spinner.values = values
+        if values:
+            if self.device_spinner.text not in values:
+                self.device_spinner.text = values[0]
+        else:
+            no_devices = self.translate("no_devices")
+            if self.device_spinner.text != no_devices:
+                self.device_spinner.text = no_devices
 
     def _manual_refresh(self, *_args: object) -> None:
         self._refresh_environment_diagnosis()

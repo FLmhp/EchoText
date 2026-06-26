@@ -93,7 +93,7 @@ class EchoTextRuntime:
             device_id=peer_identity.device_id,
             name=peer_identity.name,
             platform=peer_identity.platform,
-            host=peer_identity.host,
+            host=peer.host,
             port=peer_identity.port,
             last_seen=time.time(),
             shared_secret=shared_secret,
@@ -105,8 +105,17 @@ class EchoTextRuntime:
         """Send text to a paired peer."""
 
         paired = self._paired_peers.get(peer.device_id)
-        if paired is None:
+        if paired is None or paired.shared_secret is None:
             raise TransportError("Pair with the device before sending text")
+        active_peer = Peer(
+            device_id=paired.device_id,
+            name=paired.name,
+            platform=paired.platform,
+            host=peer.host,
+            port=peer.port,
+            last_seen=peer.last_seen,
+            shared_secret=paired.shared_secret,
+        )
         message = TextMessage(
             message_id=uuid.uuid4().hex,
             sender_id=self.identity().device_id,
@@ -114,8 +123,8 @@ class EchoTextRuntime:
             text=text,
             created_at=time.time(),
         )
-        self.client.send_message(paired, message)
-        entry = HistoryEntry("sent", paired.name, text, message.created_at, message.message_id)
+        self.client.send_message(active_peer, message)
+        entry = HistoryEntry("sent", active_peer.name, text, message.created_at, message.message_id)
         self.history.add(entry)
         return entry
 

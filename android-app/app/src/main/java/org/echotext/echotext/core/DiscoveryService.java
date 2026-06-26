@@ -139,7 +139,7 @@ public class DiscoveryService {
                 return;
             }
             String sourceHost = packet.getAddress().getHostAddress();
-            String host = "127.0.0.1".equals(identity.host) ? sourceHost : identity.host;
+            String host = LanNetwork.shouldPreferSourceHost(identity.host, sourceHost) ? sourceHost : identity.host;
             Peer peer =
                     new Peer(identity.deviceId, identity.name, identity.platform, host, identity.port,
                             System.currentTimeMillis() / 1000.0, null);

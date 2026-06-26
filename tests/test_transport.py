@@ -34,7 +34,9 @@ def test_pair_and_send_message() -> None:
     def on_message(message: TextMessage, _peer: Peer) -> None:
         received.append(message)
 
-    server = TransportServer(identity_provider, pair_code.matches, peer_provider, on_message, on_peer_paired)
+    server = TransportServer(
+        identity_provider, pair_code.matches, peer_provider, on_message, on_peer_paired, preferred_port=0
+    )
     server.start()
     try:
         client = TransportClient()
@@ -74,7 +76,11 @@ def test_transport_server_prefers_stable_port() -> None:
 
 def test_transport_server_falls_back_when_stable_port_is_taken() -> None:
     occupied_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    occupied_socket.bind(("", DEFAULT_TRANSPORT_PORT))
+    try:
+        occupied_socket.bind(("", DEFAULT_TRANSPORT_PORT))
+    except OSError:
+        occupied_socket.close()
+        pytest.skip("stable transport port is already in use by another process")
     occupied_socket.listen(1)
     identity = DeviceIdentity("receiver", "Receiver", "Windows", "127.0.0.1", 0)
     server = TransportServer(

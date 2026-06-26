@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 
 from echotext.models import DeviceIdentity, Peer
+from echotext.network import should_prefer_source_host
 from echotext.serialization import dataclass_to_dict, identity_from_dict
 
 DISCOVERY_PORT = 48734
@@ -86,7 +87,7 @@ class DiscoveryService:
         if identity.device_id == local_identity.device_id:
             return
 
-        host = identity.host if identity.host != "127.0.0.1" else source_host
+        host = source_host if should_prefer_source_host(identity.host, source_host) else identity.host
         self._peers[identity.device_id] = Peer(
             device_id=identity.device_id,
             name=identity.name,

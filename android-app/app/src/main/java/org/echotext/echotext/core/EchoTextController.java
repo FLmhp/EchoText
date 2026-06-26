@@ -128,7 +128,7 @@ public class EchoTextController {
         String sharedSecret = SecurityUtils.generateSharedSecret();
         DeviceIdentity peerIdentity = transportClient.pair(peer, identity, pairCode, sharedSecret);
         Peer paired =
-                new Peer(peerIdentity.deviceId, peerIdentity.name, peerIdentity.platform, peerIdentity.host, peerIdentity.port,
+                new Peer(peerIdentity.deviceId, peerIdentity.name, peerIdentity.platform, peer.host, peerIdentity.port,
                         System.currentTimeMillis() / 1000.0, sharedSecret);
         savePeer(paired);
         return paired;
@@ -140,14 +140,23 @@ public class EchoTextController {
         if (paired == null || paired.sharedSecret == null) {
             throw new IOException("Pair with the device before sending text");
         }
+        Peer activePeer =
+                new Peer(
+                        paired.deviceId,
+                        paired.name,
+                        paired.platform,
+                        peer.host,
+                        peer.port,
+                        peer.lastSeen,
+                        paired.sharedSecret);
         TextMessage message = new TextMessage(
                 UUID.randomUUID().toString().replace("-", ""),
                 identity.deviceId,
                 identity.name,
                 text,
                 System.currentTimeMillis() / 1000.0);
-        transportClient.sendMessage(paired, message);
-        HistoryEntry entry = new HistoryEntry("sent", paired.name, text, message.createdAt, message.messageId);
+        transportClient.sendMessage(activePeer, message);
+        HistoryEntry entry = new HistoryEntry("sent", activePeer.name, text, message.createdAt, message.messageId);
         latestText = text;
         historyStore.add(entry);
         notifyHistoryChanged(entry);
