@@ -20,6 +20,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 SetupIconFile=..\assets\branding\EchoText.ico
+UninstallDisplayIcon={app}\EchoText.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -29,10 +30,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\dist\EchoText\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\assets\branding\EchoText.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\EchoText.ico"; IconIndex: 0
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\EchoText.ico"; IconIndex: 0
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C netsh advfirewall firewall delete rule name=""EchoText LAN"" >nul 2>nul & netsh advfirewall firewall add rule name=""EchoText LAN"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private,public remoteip=localsubnet"; Flags: runhidden
