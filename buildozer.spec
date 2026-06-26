@@ -4,6 +4,7 @@ package.name = echotext
 package.domain = org.echotext
 source.dir = .
 source.include_exts = py,kv,png,jpg,json,toml,md
+source.exclude_dirs = .git,.venv,.buildozer,.buildozer-cache,.buildozer-venv,.pytest_cache,.ruff_cache,bin,build,dist,tests
 version = 0.1.0
 requirements = python3==3.12.13,hostpython3==3.12.13,kivy
 orientation = portrait

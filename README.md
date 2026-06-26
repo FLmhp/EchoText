@@ -39,6 +39,8 @@ Both devices must be on the same LAN. Allow local network/firewall prompts for E
 
 Foreground auto sync sends clipboard changes only while EchoText is open. This keeps Android permissions and background behavior predictable.
 
+On Android, EchoText stores settings and optional history in the app's private internal storage so startup does not depend on writable shared storage paths.
+
 ### Development
 
 EchoText uses Python 3.12 through `uv` for project dependency management. A global `python` and `pip` should still be available on `PATH` for compatibility and diagnostics, but project dependencies should be installed with `uv`.
@@ -108,6 +110,7 @@ If you use a local Windows proxy such as `http://127.0.0.1:7897`, keep `HTTPS_PR
 - Devices do not appear: confirm both devices are on the same Wi-Fi, firewall allows EchoText, and multicast/broadcast traffic is not blocked.
 - Pairing fails: rotate or re-read the target device's six digit code; codes expire after five minutes.
 - Android clipboard sync seems limited: automatic sync is intentionally foreground-only.
+- Android stays on the loading page or closes right after launch: rebuild and reinstall the latest APK. v0.1.0 now delays clipboard initialization until the UI is ready and stores settings in Android app-private storage to avoid early startup crashes.
 - WSL reports that localhost proxy settings are not mirrored: keep the Windows-side proxy env vars set and run `.\scripts\build_android_wsl.ps1`; it rewrites `127.0.0.1` or `localhost` to the WSL NAT gateway automatically.
 - Buildozer stops at `autoreconf: not found`: install `autoconf automake libtool pkg-config` inside WSL, then rerun the Android build script.
 - Buildozer fails at `gradlew` with `/usr/bin/env: 'bash\\r'`: install `dos2unix` inside WSL and rerun `.\scripts\build_android_wsl.ps1`; `python-for-android` will normalize `gradlew` automatically once the tool is present.
@@ -146,6 +149,8 @@ If you use a local Windows proxy such as `http://127.0.0.1:7897`, keep `HTTPS_PR
 6. 收到的文本会自动复制到本机剪贴板，并显示在历史区域。
 
 前台自动同步只在 EchoText 打开时发送剪贴板变化，这样可以减少 Android 后台权限和系统限制带来的不确定性。
+
+在 Android 上，EchoText 会把设置和可选历史记录写入应用私有内部存储，避免启动阶段依赖可写的共享存储路径。
 
 ### 开发
 
@@ -216,6 +221,7 @@ sudo apt install -y python3-pip python3-venv openjdk-17-jdk ant autoconf automak
 - 设备没有出现：确认两台设备在同一 Wi-Fi、Windows 防火墙允许 EchoText、网络未屏蔽广播/组播。
 - 配对失败：重新查看或刷新目标设备上的 6 位配对码；配对码 5 分钟后过期。
 - Android 剪贴板自动同步受限：自动同步按设计仅支持应用前台运行时工作。
+- Android 安装后卡在 loading 页面或启动即退出：请重新构建并安装最新 APK。v0.1.0 现已把剪贴板初始化延后到界面就绪之后，并把设置目录切换到 Android 应用私有存储，以规避启动早期崩溃。
 - WSL 提示 localhost 代理没有镜像：保持 Windows 侧代理环境变量已设置，然后运行 `.\scripts\build_android_wsl.ps1`；脚本会自动把 `127.0.0.1` 或 `localhost` 改写为 WSL NAT 网关地址。
 - Buildozer 卡在 `autoreconf: not found`：在 WSL 里安装 `autoconf automake libtool pkg-config`，然后重新执行 Android 构建脚本。
 - Buildozer 在 `gradlew` 阶段报 `/usr/bin/env: 'bash\r'`：在 WSL 中安装 `dos2unix`，然后重跑 `.\scripts\build_android_wsl.ps1`；`python-for-android` 检测到该工具后会自动把 `gradlew` 转成 Unix 行尾。

@@ -15,10 +15,29 @@ from echotext.serialization import peer_from_dict
 def default_data_dir() -> Path:
     """Return a cross-platform application data directory."""
 
+    if _is_android():
+        try:
+            from android.storage import app_storage_path
+
+            return Path(app_storage_path()) / "EchoText"
+        except Exception:
+            pass
+
     home = Path.home()
     if platform.system().lower() == "windows":
         return Path.home() / "AppData" / "Roaming" / "EchoText"
     return home / ".echotext"
+
+
+def _is_android() -> bool:
+    """Return whether the current runtime is Android."""
+
+    try:
+        from kivy.utils import platform as kivy_platform
+
+        return kivy_platform == "android"
+    except Exception:
+        return False
 
 
 class SettingsStore:
