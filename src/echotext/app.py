@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-import time
 from functools import partial
 from pathlib import Path
 
@@ -43,7 +42,6 @@ class EchoTextApp(App):
         self.latest_text = ""
         self._clipboard_available = True
         self.environment_diagnosis = EnvironmentDiagnosis(True, True, False, "none", "", "")
-        self._last_environment_refresh = 0.0
 
         root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(8))
 
@@ -67,7 +65,7 @@ class EchoTextApp(App):
         device_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
         self.device_spinner = Spinner(text="", values=[], size_hint_x=0.65)
         device_row.add_widget(self.device_spinner)
-        self.refresh_button = Button(on_press=self._refresh_peers)
+        self.refresh_button = Button(on_press=self._manual_refresh)
         device_row.add_widget(self.refresh_button)
         root.add_widget(device_row)
 
@@ -158,8 +156,6 @@ class EchoTextApp(App):
     def _tick(self, _dt: float) -> None:
         if self.runtime is None:
             return
-        if time.monotonic() - self._last_environment_refresh >= 5:
-            self._refresh_environment_diagnosis()
         self._refresh_pair_code()
         self._refresh_peers()
         if self.auto_sync_switch.active:
@@ -194,6 +190,10 @@ class EchoTextApp(App):
             self.device_spinner.text = values[0]
         if not values:
             self.device_spinner.text = self.translate("no_devices")
+
+    def _manual_refresh(self, *_args: object) -> None:
+        self._refresh_environment_diagnosis()
+        self._refresh_peers()
 
     def _pair_selected_peer(self, *_args: object) -> None:
         if self.runtime is None:
@@ -349,7 +349,6 @@ class EchoTextApp(App):
     def _refresh_environment_diagnosis(self) -> None:
         if self.runtime is None:
             return
-        self._last_environment_refresh = time.monotonic()
         if sys.platform != "win32":
             self.environment_diagnosis = EnvironmentDiagnosis(True, True, True, "none", "", "")
             self._render_environment_diagnosis()

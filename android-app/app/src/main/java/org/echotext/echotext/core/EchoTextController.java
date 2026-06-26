@@ -128,7 +128,7 @@ public class EchoTextController {
         String sharedSecret = SecurityUtils.generateSharedSecret();
         DeviceIdentity peerIdentity = transportClient.pair(peer, identity, pairCode, sharedSecret);
         Peer paired =
-                new Peer(peerIdentity.deviceId, peerIdentity.name, peerIdentity.platform, peer.host, peer.port,
+                new Peer(peerIdentity.deviceId, peerIdentity.name, peerIdentity.platform, peerIdentity.host, peerIdentity.port,
                         System.currentTimeMillis() / 1000.0, sharedSecret);
         savePeer(paired);
         return paired;

@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +23,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 public class TransportServer {
+    public static final int DEFAULT_PORT = 48735;
+
     public interface IdentityProvider {
         DeviceIdentity identity() throws Exception;
     }
@@ -69,7 +72,11 @@ public class TransportServer {
         if (!running.compareAndSet(false, true)) {
             return;
         }
-        serverSocket = new ServerSocket(0);
+        try {
+            serverSocket = new ServerSocket(DEFAULT_PORT);
+        } catch (BindException exception) {
+            serverSocket = new ServerSocket(0);
+        }
         executor.execute(this::acceptLoop);
     }
 

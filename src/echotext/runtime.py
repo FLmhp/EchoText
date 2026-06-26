@@ -93,8 +93,8 @@ class EchoTextRuntime:
             device_id=peer_identity.device_id,
             name=peer_identity.name,
             platform=peer_identity.platform,
-            host=peer.host,
-            port=peer.port,
+            host=peer_identity.host,
+            port=peer_identity.port,
             last_seen=time.time(),
             shared_secret=shared_secret,
         )

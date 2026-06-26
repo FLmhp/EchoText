@@ -97,11 +97,13 @@ $rules | ForEach-Object {
 """
     try:
         result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", script],
+            ["powershell", "-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
             capture_output=True,
             check=False,
             encoding="utf-8",
             timeout=3,
+            creationflags=_creation_flags(),
+            startupinfo=_startup_info(),
         )
     except (OSError, subprocess.SubprocessError):
         return []
@@ -216,3 +218,16 @@ def _split_tokens(raw_value: str) -> tuple[str, ...]:
 
 def _normalize_path(path: str | Path) -> str:
     return str(path).replace("/", "\\").lower()
+
+
+def _creation_flags() -> int:
+    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
+def _startup_info() -> subprocess.STARTUPINFO | None:
+    if platform.system().lower() != "windows" or not hasattr(subprocess, "STARTUPINFO"):
+        return None
+    startup_info = subprocess.STARTUPINFO()
+    startup_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup_info.wShowWindow = 0
+    return startup_info
