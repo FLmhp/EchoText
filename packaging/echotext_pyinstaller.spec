@@ -15,6 +15,7 @@ a = Analysis(
     pathex=[str(project_root)],
     binaries=kivy_deps["binaries"],
     datas=[
+        (str(branding_dir / "EchoText.ico"), "assets/branding"),
         (str(branding_dir / "echotext-icon-256.png"), "assets/branding"),
         (str(branding_dir / "echotext-icon-1024.png"), "assets/branding"),
     ],

@@ -10,6 +10,7 @@ from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle
 from kivy.logger import Logger
 from kivy.metrics import dp
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -62,6 +63,7 @@ class EchoTextApp(App):
         Window.clearcolor = COLOR_BG
         icon_path = window_icon_path()
         if icon_path is not None:
+            self.icon = str(icon_path)
             try:
                 Window.set_icon(str(icon_path))
             except Exception as exc:
@@ -132,20 +134,32 @@ class EchoTextApp(App):
         root.add_widget(pair_row)
 
         settings_row = BoxLayout(size_hint_y=None, height=dp(54), spacing=dp(10))
-        settings_row.add_widget(self._build_toggle_group("auto_sync_label", "auto_sync_switch", self._toggle_auto_sync))
+        settings_row.add_widget(self._build_spacer())
         settings_row.add_widget(
-            self._build_toggle_group("history_setting_label", "history_switch", self._toggle_persistent_history)
+            self._build_toggle_group("auto_sync_label", "auto_sync_switch", self._toggle_auto_sync, width_ratio=0.28)
         )
+        settings_row.add_widget(self._build_spacer(0.08))
+        settings_row.add_widget(
+            self._build_toggle_group(
+                "history_setting_label",
+                "history_switch",
+                self._toggle_persistent_history,
+                width_ratio=0.28,
+            )
+        )
+        settings_row.add_widget(self._build_spacer())
         root.add_widget(settings_row)
 
         language_row = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
-        self.language_label = Label(size_hint_x=0.3, color=COLOR_TEXT_MUTED, font_size="15sp", halign="left")
+        language_row.add_widget(self._build_spacer())
+        self.language_label = Label(size_hint_x=0.12, color=COLOR_TEXT_MUTED, font_size="15sp", halign="center")
         self.language_label.bind(size=self._sync_label_text_size)
         language_row.add_widget(self.language_label)
-        self.language_spinner = Spinner(text="", values=[], size_hint_x=0.7)
+        self.language_spinner = Spinner(text="", values=[], size_hint_x=(1 / 3))
         self._style_spinner(self.language_spinner)
         self.language_spinner.bind(text=self._set_language_preference)
         language_row.add_widget(self.language_spinner)
+        language_row.add_widget(self._build_spacer())
         root.add_widget(language_row)
 
         self.message_input = TextInput(multiline=True, size_hint_y=None, height=dp(170))
@@ -220,9 +234,11 @@ class EchoTextApp(App):
         label_attr: str,
         switch_attr: str,
         callback: callable,
-    ) -> BoxLayout:
-        group = BoxLayout(spacing=dp(10))
-        label = Label(color=COLOR_TEXT_MUTED, halign="left", valign="middle", font_size="15sp")
+        width_ratio: float,
+    ) -> AnchorLayout:
+        wrapper = AnchorLayout(anchor_x="center", anchor_y="center", size_hint_x=width_ratio)
+        group = BoxLayout(size_hint=(1, None), height=dp(40), spacing=dp(10))
+        label = Label(color=COLOR_TEXT_MUTED, halign="center", valign="middle", font_size="15sp")
         label.bind(size=self._sync_label_text_size)
         setattr(self, label_attr, label)
         group.add_widget(label)
@@ -231,7 +247,12 @@ class EchoTextApp(App):
         toggle.bind(active=callback)
         setattr(self, switch_attr, toggle)
         group.add_widget(toggle)
-        return group
+        wrapper.add_widget(group)
+        return wrapper
+
+    def _build_spacer(self, width_ratio: float = 0.18) -> BoxLayout:
+        spacer = BoxLayout(size_hint_x=width_ratio)
+        return spacer
 
     def _install_root_background(self, widget: BoxLayout) -> None:
         with widget.canvas.before:

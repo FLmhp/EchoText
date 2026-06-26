@@ -21,7 +21,10 @@ def branding_asset(*parts: str) -> Path:
 def window_icon_path() -> Path | None:
     """Return the preferred window icon path when available."""
 
-    for candidate in ("echotext-icon-256.png", "echotext-icon-1024.png"):
+    candidates = ["echotext-icon-256.png", "echotext-icon-1024.png"]
+    if sys.platform == "win32":
+        candidates.insert(0, "EchoText.ico")
+    for candidate in candidates:
         path = branding_asset(candidate)
         if path.exists():
             return path
