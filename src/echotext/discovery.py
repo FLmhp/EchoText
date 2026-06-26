@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 
 from echotext.models import DeviceIdentity, Peer
-from echotext.network import should_prefer_source_host
+from echotext.network import broadcast_targets, should_prefer_source_host
 from echotext.serialization import dataclass_to_dict, identity_from_dict
 
 DISCOVERY_PORT = 48734
@@ -52,7 +52,9 @@ class DiscoveryService:
             while not self._stop_event.is_set():
                 identity = self.identity_provider()
                 payload = {"magic": DISCOVERY_MAGIC, "device": dataclass_to_dict(identity)}
-                sock.sendto(json.dumps(payload).encode("utf-8"), ("255.255.255.255", DISCOVERY_PORT))
+                payload_bytes = json.dumps(payload).encode("utf-8")
+                for target in broadcast_targets(identity.host):
+                    sock.sendto(payload_bytes, (target, DISCOVERY_PORT))
                 self._stop_event.wait(2)
         finally:
             sock.close()
@@ -60,6 +62,7 @@ class DiscoveryService:
     def _listen_loop(self) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.bind(("", DISCOVERY_PORT))
         sock.settimeout(1)
         try:

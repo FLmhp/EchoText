@@ -89,6 +89,13 @@ class SettingsStore:
         """Persist a paired peer."""
 
         peers = self.data.setdefault("peers", {})
+        duplicate_ids = [
+            device_id
+            for device_id, raw_peer in peers.items()
+            if device_id != peer.device_id and _peer_identity_key(peer_from_dict(raw_peer)) == _peer_identity_key(peer)
+        ]
+        for device_id in duplicate_ids:
+            peers.pop(device_id, None)
         peers[peer.device_id] = asdict(peer)
         self.save()
 
@@ -117,3 +124,7 @@ class SettingsStore:
 
         self.data["language"] = language
         self.save()
+
+
+def _peer_identity_key(peer: Peer) -> tuple[str, str]:
+    return (peer.name.casefold(), peer.platform.casefold())

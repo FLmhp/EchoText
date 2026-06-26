@@ -121,7 +121,7 @@ public class EchoTextController {
         }
         List<Peer> peers = new ArrayList<>(merged.values());
         peers.sort(Comparator.comparing(peer -> peer.name.toLowerCase()));
-        return peers;
+        return dedupePeers(peers);
     }
 
     public synchronized Peer pairWithPeer(Peer peer, String pairCode) throws IOException, JSONException {
@@ -234,6 +234,24 @@ public class EchoTextController {
     private synchronized void savePeer(Peer peer) {
         pairedPeers.put(peer.deviceId, peer);
         settings.savePeer(peer);
+    }
+
+    private static List<Peer> dedupePeers(List<Peer> peers) {
+        Map<String, Peer> chosen = new LinkedHashMap<>();
+        for (Peer peer : peers) {
+            String key = peer.name.toLowerCase() + "\u0000" + peer.platform.toLowerCase();
+            Peer existing = chosen.get(key);
+            if (existing == null || peerRank(peer) > peerRank(existing)) {
+                chosen.put(key, peer);
+            }
+        }
+        List<Peer> deduped = new ArrayList<>(chosen.values());
+        deduped.sort(Comparator.comparing(peer -> peer.name.toLowerCase()));
+        return deduped;
+    }
+
+    private static double peerRank(Peer peer) {
+        return peer.lastSeen + (peer.sharedSecret == null ? 0.0 : 0.001);
     }
 
     private void notifyPeersChanged() {

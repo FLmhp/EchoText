@@ -14,6 +14,7 @@ EchoText is a LAN text bridge between Windows and Android. It discovers nearby d
 - Windows desktop app: Python 3.12 + Kivy
 - Android app: native Java + Android SDK
 - Discovery: UDP broadcast on port `48734`
+- Discovery targets: global broadcast plus the active LAN subnet broadcast (for example `192.168.3.255`)
 - Transport: HTTP `POST /api/v1/pair` and `POST /api/v1/messages`
 - Integrity: per-peer HMAC-SHA256 signatures
 - Clipboard: manual paste/send/copy plus optional foreground auto sync
@@ -21,6 +22,7 @@ EchoText is a LAN text bridge between Windows and Android. It discovers nearby d
 - UI: English and Chinese, Android defaults to system language and supports manual switching
 - Desktop language: Windows now defaults to Chinese on first launch, supports manual switching, and automatically uses a local CJK system font when available
 - Connectivity: both apps prefer a stable LAN transport port and only fall back to a random port when the preferred port is already occupied
+- Peer cache hygiene: when a device is rediscovered or re-paired with a new device ID, EchoText now prunes stale same-name peer records automatically
 
 The current Android deliverable is the native Java app under [`android-app/`](/C:/Users/SoloEternity/Documents/Code/EchoText/android-app). The older `python-for-android` / Buildozer path is kept only as legacy build context and is no longer the recommended route for APK delivery.
 
@@ -121,7 +123,8 @@ Completed validation for the current Android app includes:
 - app launches on device without the previous loading-screen crash
 - Android no longer fails with `Cleartext HTTP traffic ... not permitted` when talking to LAN peers
 - Windows desktop Chinese UI no longer depends on the Kivy default font and uses a compatible local system font
-- Windows-to-Android pairing and signed message delivery works with English, Chinese, and multiline text
+- fresh Android startup can rediscover a Windows peer through the updated subnet broadcast path
+- Android-to-Windows signed message delivery works on a real device after peer state is refreshed
 
 ### Troubleshooting
 
@@ -136,11 +139,11 @@ Completed validation for the current Android app includes:
 - `adb install` is rejected on HarmonyOS:
   Use `adb push ... /data/local/tmp/...` followed by `adb shell pm install -r -t ...`, or enable the device's USB install permission flow.
 - Devices do not appear:
-    Make sure both devices are on the same Wi-Fi and local broadcast traffic is not blocked.
+    Make sure both devices are on the same Wi-Fi and local broadcast traffic is not blocked. The latest build now sends discovery packets to both `255.255.255.255` and the active subnet broadcast target, so reopen both apps after upgrading.
 - Pairing fails:
     Re-read the target pair code; codes expire after five minutes. If the Windows app is launched from source or an older installer, also confirm Windows Defender Firewall allows `EchoText.exe` or `python.exe` for local subnet access.
 - Android receives from Windows but cannot send back:
-    Upgrade both apps to the latest build, then reopen both sides once so they can republish the preferred LAN transport port. The desktop `Refresh` button now reruns discovery and diagnostics without repeatedly spawning console windows.
+    Upgrade both apps to the latest build, then reopen both sides once so they can republish the preferred LAN transport port. Re-pair the device if it was previously cached under an older device ID; EchoText now removes stale same-name peer entries automatically after a successful re-pair.
 - Windows Chinese text still renders incorrectly:
     Install a standard Chinese system font such as Microsoft YaHei, DengXian, SimHei, or Noto Sans SC, then restart EchoText.
 
@@ -151,6 +154,7 @@ Completed validation for the current Android app includes:
 - Windows 桌面端：Python 3.12 + Kivy
 - Android 端：原生 Java + Android SDK
 - 发现机制：UDP 广播，端口 `48734`
+- 广播目标：同时发送到全局广播地址和当前局域网子网广播地址，例如 `192.168.3.255`
 - 传输机制：HTTP `POST /api/v1/pair` 与 `POST /api/v1/messages`
 - 完整性校验：基于每个已配对设备的 HMAC-SHA256 签名
 - 剪贴板：支持手动粘贴/发送/复制，也支持前台自动同步
@@ -158,6 +162,7 @@ Completed validation for the current Android app includes:
 - 界面语言：支持中英双语，Android 默认跟随系统语言，也可手动切换
 - 桌面端语言：Windows 首次启动默认中文，也支持手动切换，并会优先使用本机可用的中文系统字体
 - 连通性：Android 与 Windows 都会优先使用固定局域网传输端口，只有该端口已被占用时才回退到随机端口
+- 设备缓存清理：如果同一设备因重装或清缓存产生新的 device ID，EchoText 会在重新配对后自动清理旧的同名缓存记录
 
 当前可交付的 Android 方案是原生 Java 工程 [`android-app/`](/C:/Users/SoloEternity/Documents/Code/EchoText/android-app)。旧的 `python-for-android` / Buildozer 路线仅作为历史构建上下文保留，不再是推荐的 APK 交付方式。
 
@@ -258,7 +263,8 @@ Android 构建脚本会按以下顺序查找 SDK：
 - 应用可在真机正常启动，不再出现之前的 loading 卡死和闪退
 - Android 访问局域网设备时不再触发 `Cleartext HTTP traffic ... not permitted`
 - Windows 桌面端中文界面不再依赖 Kivy 默认字体，可自动选择兼容的本机系统字体
-- Windows 到 Android 的配对与签名消息传输可正常工作，已验证英文、中文和多行文本
+- Android fresh 启动后可以通过新的子网广播路径重新发现 Windows 端
+- Android 到 Windows 的签名消息发送已经在真机上验证通过，前提是双方 peer 状态已刷新一致
 
 ### 故障排查
 
@@ -273,10 +279,10 @@ Android 构建脚本会按以下顺序查找 SDK：
 - HarmonyOS 下 `adb install` 被系统拦截：
     改用 `adb push ... /data/local/tmp/...` 再执行 `adb shell pm install -r -t ...`，或者在手机开发者选项中放行 USB 安装。
 - 设备互相发现不到：
-    确认两台设备在同一 Wi-Fi，且网络没有屏蔽本地广播。
+    确认两台设备在同一 Wi-Fi，且网络没有屏蔽本地广播。升级后请把两端都重新打开一次，新版本会同时向 `255.255.255.255` 和当前子网广播地址发送发现包。
 - 配对失败：
     重新读取目标设备的 6 位配对码；配对码 5 分钟后会过期。如果 Windows 端来自源码运行或旧版安装包，还要确认 Windows Defender 防火墙已经允许 `EchoText.exe` 或 `python.exe` 访问本地子网。
 - Android 能接收 Windows 消息，但无法回发：
-    升级两端到最新构建后，各自重新打开一次应用，让它们重新广播当前优先使用的局域网传输端口。桌面端的“刷新”按钮现在会同时重新执行设备发现和环境诊断，而且不会再反复弹出命令行窗口。
+    升级两端到最新构建后，各自重新打开一次应用，让它们重新广播当前优先使用的局域网传输端口。如果目标设备曾经重装、清缓存或更换过 device ID，请重新配对一次；新版本会在成功重配后自动清理旧的同名缓存记录。
 - Windows 桌面端中文仍显示异常：
     安装微软雅黑、等线、黑体或 Noto Sans SC 等常见中文系统字体后重新启动 EchoText。

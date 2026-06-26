@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -18,6 +18,25 @@ _WINDOWS_FONT_CANDIDATES = [
     ("simhei.ttf", None),
     ("simsun.ttc", "simsunb.ttf"),
 ]
+_NETSH_FIELD_ALIASES = {
+    "rule name": "rule_name",
+    "规则名称": "rule_name",
+    "enabled": "enabled",
+    "已启用": "enabled",
+    "profiles": "profiles",
+    "配置文件": "profiles",
+    "program": "program",
+    "程序": "program",
+    "remoteip": "remote_ip",
+    "远程 ip": "remote_ip",
+}
+_NETSH_TRUE_VALUES = {"yes", "true", "on", "是"}
+_NETSH_TOKEN_ALIASES = {
+    "专用": "private",
+    "公用": "public",
+    "任何": "any",
+    "localsubnet": "localsubnet",
+}
 
 
 @dataclass(frozen=True)
@@ -78,29 +97,11 @@ def register_windows_default_font(font_selection: FontSelection | None = None) -
 def load_echo_firewall_rules() -> list[FirewallRuleInfo]:
     """Load enabled EchoText firewall rules from Windows Defender Firewall."""
 
-    script = """
-$rules = Get-NetFirewallRule -DisplayName 'EchoText LAN' -ErrorAction SilentlyContinue
-if (-not $rules) {
-    '[]'
-    exit 0
-}
-$rules | ForEach-Object {
-    $application = $_ | Get-NetFirewallApplicationFilter
-    $address = $_ | Get-NetFirewallAddressFilter
-    [pscustomobject]@{
-        Enabled = [bool]($_.Enabled -eq 'True')
-        Profile = [string]$_.Profile
-        Program = [string]$application.Program
-        RemoteAddress = [string]$address.RemoteAddress
-    }
-} | ConvertTo-Json -Compress
-"""
     try:
         result = subprocess.run(
-            ["powershell", "-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
+            ["netsh", "advfirewall", "firewall", "show", "rule", "name=EchoText LAN", "verbose"],
             capture_output=True,
             check=False,
-            encoding="utf-8",
             timeout=3,
             creationflags=_creation_flags(),
             startupinfo=_startup_info(),
@@ -108,28 +109,10 @@ $rules | ForEach-Object {
     except (OSError, subprocess.SubprocessError):
         return []
 
-    if result.returncode != 0 or not result.stdout.strip():
+    output = _decode_netsh_output(result.stdout)
+    if result.returncode != 0 or not output.strip():
         return []
-
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return []
-
-    rows = payload if isinstance(payload, list) else [payload]
-    rules: list[FirewallRuleInfo] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        rules.append(
-            FirewallRuleInfo(
-                enabled=bool(row.get("Enabled", False)),
-                profiles=_split_tokens(str(row.get("Profile", ""))),
-                program=str(row.get("Program", "")),
-                remote_addresses=_split_tokens(str(row.get("RemoteAddress", ""))),
-            )
-        )
-    return rules
+    return _parse_netsh_rules(output)
 
 
 def diagnose_desktop_environment(
@@ -212,12 +195,57 @@ def _resolve_firewall_scope(rules: list[FirewallRuleInfo]) -> str:
 
 
 def _split_tokens(raw_value: str) -> tuple[str, ...]:
-    values = [token.strip().lower() for token in raw_value.split(",") if token.strip()]
+    values = []
+    for token in raw_value.split(","):
+        normalized = token.strip().lower()
+        if not normalized:
+            continue
+        values.append(_NETSH_TOKEN_ALIASES.get(normalized, normalized))
     return tuple(values)
 
 
 def _normalize_path(path: str | Path) -> str:
     return str(path).replace("/", "\\").lower()
+
+
+def _parse_netsh_rules(output: str) -> list[FirewallRuleInfo]:
+    blocks = [
+        block
+        for block in re.split(r"\r?\n\s*\r?\n", output.strip())
+        if "Rule Name:" in block or "规则名称:" in block
+    ]
+    rules: list[FirewallRuleInfo] = []
+    for block in blocks:
+        fields: dict[str, str] = {}
+        for line in block.splitlines():
+            if ":" not in line:
+                continue
+            key, value = line.split(":", maxsplit=1)
+            normalized_key = _NETSH_FIELD_ALIASES.get(key.strip().lower())
+            if normalized_key is None:
+                continue
+            fields[normalized_key] = value.strip()
+        program = fields.get("program", "")
+        if program.lower() == "any":
+            program = ""
+        rules.append(
+            FirewallRuleInfo(
+                enabled=fields.get("enabled", "").strip().lower() in _NETSH_TRUE_VALUES,
+                profiles=_split_tokens(fields.get("profiles", "")),
+                program=program,
+                remote_addresses=_split_tokens(fields.get("remote_ip", "")),
+            )
+        )
+    return rules
+
+
+def _decode_netsh_output(raw_output: bytes) -> str:
+    for encoding in ("utf-8", "utf-8-sig", "mbcs", "cp936", "gbk"):
+        try:
+            return raw_output.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw_output.decode("utf-8", errors="replace")
 
 
 def _creation_flags() -> int:

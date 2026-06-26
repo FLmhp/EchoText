@@ -25,6 +25,16 @@ def should_prefer_source_host(advertised_host: str, source_host: str) -> bool:
     return source_score > advertised_score
 
 
+def broadcast_targets(host: str) -> list[str]:
+    """Return broadcast targets for the active LAN host."""
+
+    targets = ["255.255.255.255"]
+    derived = _derived_broadcast_host(host)
+    if derived and derived not in targets:
+        targets.append(derived)
+    return targets
+
+
 def _ipv4_candidates() -> list[str]:
     candidates: list[str] = []
     probe_ip = _probe_ip()
@@ -101,3 +111,10 @@ def _is_valid_ipv4(candidate: str) -> bool:
 
 def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
+
+
+def _derived_broadcast_host(host: str) -> str | None:
+    if not _is_valid_ipv4(host):
+        return None
+    octets = host.split(".")
+    return ".".join([octets[0], octets[1], octets[2], "255"])

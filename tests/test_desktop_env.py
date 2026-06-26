@@ -109,3 +109,53 @@ def test_build_environment_diagnosis_reports_current_process_not_allowed(tmp_pat
     )
 
     assert diagnosis.warning_key == "warning_current_process_firewall"
+
+
+def test_parse_netsh_rules_reads_program_and_scope() -> None:
+    output = """
+Rule Name:                            EchoText LAN
+----------------------------------------------------------------------
+Enabled:                              Yes
+Profiles:                             Private,Public
+RemoteIP:                             LocalSubnet
+Program:                              C:\\Program Files\\EchoText\\EchoText.exe
+Action:                               Allow
+Ok.
+"""
+
+    rules = desktop_env._parse_netsh_rules(output)
+
+    assert rules == [
+        desktop_env.FirewallRuleInfo(
+            enabled=True,
+            profiles=("private", "public"),
+            program=r"C:\Program Files\EchoText\EchoText.exe",
+            remote_addresses=("localsubnet",),
+        )
+    ]
+
+
+def test_parse_netsh_rules_supports_utf8_chinese_labels() -> None:
+    output = desktop_env._decode_netsh_output(
+        (
+            "\r\n规则名称:                             EchoText LAN\r\n"
+            "----------------------------------------------------------------------\r\n"
+            "已启用:                               是\r\n"
+            "方向:                                 入\r\n"
+            "配置文件:                             专用,公用\r\n"
+            "远程 IP:                              LocalSubnet\r\n"
+            "程序:                                 C:\\Program Files\\EchoText\\EchoText.exe\r\n"
+            "操作:                                 允许\r\n"
+        ).encode()
+    )
+
+    rules = desktop_env._parse_netsh_rules(output)
+
+    assert rules == [
+        desktop_env.FirewallRuleInfo(
+            enabled=True,
+            profiles=("private", "public"),
+            program=r"C:\Program Files\EchoText\EchoText.exe",
+            remote_addresses=("localsubnet",),
+        )
+    ]

@@ -19,6 +19,8 @@ import androidx.appcompat.widget.SwitchCompat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.echotext.echotext.core.EchoTextController;
 import org.echotext.echotext.core.FailureStatusMapper;
@@ -29,12 +31,13 @@ import org.echotext.echotext.ui.LocaleHelper;
 
 public class MainActivity extends AppCompatActivity implements EchoTextController.Listener {
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService requestExecutor = Executors.newSingleThreadExecutor();
     private final Runnable refreshRunnable =
             new Runnable() {
                 @Override
                 public void run() {
                     refreshUi();
-                    handler.postDelayed(this, 1_000L);
+                    handler.postDelayed(this, 2_000L);
                 }
             };
 
@@ -44,6 +47,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
 
     private TextView statusText;
     private TextView pairCodeText;
+    private TextView peerDetailText;
     private Spinner deviceSpinner;
     private Spinner languageSpinner;
     private EditText pairCodeInput;
@@ -51,6 +55,8 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private SwitchCompat autoSyncSwitch;
     private SwitchCompat persistentHistorySwitch;
     private TextView historyText;
+    private Button pairButton;
+    private Button sendButton;
 
     private ArrayAdapter<String> deviceAdapter;
     private ArrayAdapter<String> languageAdapter;
@@ -118,6 +124,12 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        requestExecutor.shutdownNow();
+    }
+
+    @Override
     public void onPeersChanged() {
         refreshPeerList();
     }
@@ -140,6 +152,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private void bindViews() {
         statusText = findViewById(R.id.status_text);
         pairCodeText = findViewById(R.id.pair_code_text);
+        peerDetailText = findViewById(R.id.peer_detail_text);
         deviceSpinner = findViewById(R.id.device_spinner);
         languageSpinner = findViewById(R.id.language_spinner);
         pairCodeInput = findViewById(R.id.pair_code_input);
@@ -147,10 +160,23 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         autoSyncSwitch = findViewById(R.id.auto_sync_switch);
         persistentHistorySwitch = findViewById(R.id.persistent_history_switch);
         historyText = findViewById(R.id.history_text);
+        pairButton = findViewById(R.id.pair_button);
+        sendButton = findViewById(R.id.send_button);
 
         deviceAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new ArrayList<>());
         deviceAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         deviceSpinner.setAdapter(deviceAdapter);
+        deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                updateSelectedPeerDetails();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                updateSelectedPeerDetails();
+            }
+        });
     }
 
     private void configureLanguageSpinner() {
@@ -192,9 +218,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
 
     private void configureActions() {
         Button refreshButton = findViewById(R.id.refresh_button);
-        Button pairButton = findViewById(R.id.pair_button);
         Button pasteButton = findViewById(R.id.paste_button);
-        Button sendButton = findViewById(R.id.send_button);
         Button copyLatestButton = findViewById(R.id.copy_latest_button);
         Button clearButton = findViewById(R.id.clear_button);
 
@@ -259,6 +283,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             deviceAdapter.add(getString(R.string.no_devices));
             deviceSpinner.setEnabled(false);
             deviceAdapter.notifyDataSetChanged();
+            updateSelectedPeerDetails();
             return;
         }
         displayedPeers.addAll(peers);
@@ -267,6 +292,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         }
         deviceSpinner.setEnabled(true);
         deviceAdapter.notifyDataSetChanged();
+        updateSelectedPeerDetails();
     }
 
     private void refreshHistory() {
@@ -295,13 +321,22 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             setStatus(getString(R.string.status_enter_pair_code));
             return;
         }
-        try {
-            Peer paired = controller.pairWithPeer(peer, pairCode);
-            setStatus(getString(R.string.status_paired, paired.name));
-            refreshPeerList();
-        } catch (Exception exception) {
-            setStatus(statusTextForException(exception, peer));
-        }
+        setRequestButtonsEnabled(false);
+        requestExecutor.execute(() -> {
+            try {
+                Peer paired = controller.pairWithPeer(peer, pairCode);
+                handler.post(() -> {
+                    setStatus(getString(R.string.status_paired, paired.name));
+                    refreshPeerList();
+                    setRequestButtonsEnabled(true);
+                });
+            } catch (Exception exception) {
+                handler.post(() -> {
+                    setStatus(statusTextForException(exception, peer));
+                    setRequestButtonsEnabled(true);
+                });
+            }
+        });
     }
 
     private void sendSelectedText() {
@@ -315,13 +350,22 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             setStatus(getString(R.string.status_enter_message));
             return;
         }
-        try {
-            controller.sendText(peer, text);
-            setStatus(getString(R.string.status_sent, peer.name));
-            refreshHistory();
-        } catch (Exception exception) {
-            setStatus(statusTextForException(exception, peer));
-        }
+        setRequestButtonsEnabled(false);
+        requestExecutor.execute(() -> {
+            try {
+                controller.sendText(peer, text);
+                handler.post(() -> {
+                    setStatus(getString(R.string.status_sent, peer.name));
+                    refreshHistory();
+                    setRequestButtonsEnabled(true);
+                });
+            } catch (Exception exception) {
+                handler.post(() -> {
+                    setStatus(statusTextForException(exception, peer));
+                    setRequestButtonsEnabled(true);
+                });
+            }
+        });
     }
 
     private Peer selectedPeer() {
@@ -334,6 +378,11 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
 
     private void setStatus(@NonNull String text) {
         statusText.setText(text);
+    }
+
+    private void setRequestButtonsEnabled(boolean enabled) {
+        pairButton.setEnabled(enabled);
+        sendButton.setEnabled(enabled);
     }
 
     private String statusTextForException(Exception exception, Peer peer) {
@@ -374,8 +423,17 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         };
     }
 
-    private String formatPeerLabel(Peer peer) {
+    private void updateSelectedPeerDetails() {
+        Peer peer = selectedPeer();
+        if (peer == null) {
+            peerDetailText.setText("");
+            return;
+        }
         String suffix = peer.sharedSecret == null ? "" : getString(R.string.paired_suffix);
-        return peer.name + " (" + peer.platform + ") " + peer.host + ":" + peer.port + suffix;
+        peerDetailText.setText(peer.host + ":" + peer.port + " · " + peer.platform + suffix);
+    }
+
+    private String formatPeerLabel(Peer peer) {
+        return peer.name;
     }
 }

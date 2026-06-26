@@ -19,6 +19,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import android.util.Log;
+
 import org.echotext.echotext.model.DeviceIdentity;
 import org.echotext.echotext.model.Peer;
 import org.json.JSONObject;
@@ -30,6 +32,7 @@ public class DiscoveryService {
 
     private static final int DISCOVERY_PORT = 48734;
     private static final String DISCOVERY_MAGIC = "ECHOTEXT_DISCOVERY_V1";
+    private static final String TAG = "EchoTextDiscovery";
 
     private final Context context;
     private final IdentityProvider identityProvider;
@@ -85,13 +88,15 @@ public class DiscoveryService {
                 payload.put("magic", DISCOVERY_MAGIC);
                 payload.put("device", identity.toJson());
                 byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
-                DatagramPacket packet =
-                        new DatagramPacket(bytes, bytes.length, InetAddress.getByName("255.255.255.255"), DISCOVERY_PORT);
-                broadcastSocket.send(packet);
+                for (String target : LanNetwork.broadcastTargets(identity.host)) {
+                    DatagramPacket packet =
+                            new DatagramPacket(bytes, bytes.length, InetAddress.getByName(target), DISCOVERY_PORT);
+                    broadcastSocket.send(packet);
+                }
                 Thread.sleep(2_000L);
             }
-        } catch (Exception ignored) {
-            // Background best-effort broadcast.
+        } catch (Exception exception) {
+            Log.w(TAG, "Discovery broadcast stopped", exception);
         } finally {
             if (broadcastSocket != null) {
                 broadcastSocket.close();
@@ -103,6 +108,7 @@ public class DiscoveryService {
         try {
             listenSocket = new DatagramSocket(null);
             listenSocket.setReuseAddress(true);
+            listenSocket.setBroadcast(true);
             listenSocket.bind(new InetSocketAddress(DISCOVERY_PORT));
             listenSocket.setSoTimeout(1_000);
             byte[] buffer = new byte[8192];
@@ -117,8 +123,8 @@ public class DiscoveryService {
                     // Socket closed during shutdown.
                 }
             }
-        } catch (IOException ignored) {
-            // Best-effort listener.
+        } catch (IOException exception) {
+            Log.w(TAG, "Discovery listener stopped", exception);
         } finally {
             if (listenSocket != null) {
                 listenSocket.close();

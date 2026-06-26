@@ -67,10 +67,22 @@ class EchoTextApp(App):
 
         device_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
         self.device_spinner = Spinner(text="", values=[], size_hint_x=0.65)
+        self.device_spinner.bind(text=self._update_selected_peer_details)
         device_row.add_widget(self.device_spinner)
         self.refresh_button = Button(on_press=self._manual_refresh)
         device_row.add_widget(self.refresh_button)
         root.add_widget(device_row)
+
+        self.peer_detail_label = Label(
+            text="",
+            size_hint_y=None,
+            height=dp(24),
+            halign="left",
+            valign="middle",
+            color=(0.8, 0.8, 0.8, 1.0),
+        )
+        self.peer_detail_label.bind(texture_size=self._resize_peer_detail_label)
+        root.add_widget(self.peer_detail_label)
 
         pair_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
         self.pair_code_input = TextInput(multiline=False, input_filter="int")
@@ -191,6 +203,7 @@ class EchoTextApp(App):
             no_devices = self.translate("no_devices")
             if self.device_spinner.text != no_devices:
                 self.device_spinner.text = no_devices
+            self.peer_detail_label.text = ""
             return
         peers = self.runtime.peers()
         self.peer_by_label = {
@@ -206,6 +219,7 @@ class EchoTextApp(App):
             no_devices = self.translate("no_devices")
             if self.device_spinner.text != no_devices:
                 self.device_spinner.text = no_devices
+        self._update_selected_peer_details()
 
     def _manual_refresh(self, *_args: object) -> None:
         self._refresh_environment_diagnosis()
@@ -314,11 +328,23 @@ class EchoTextApp(App):
         label.text_size = (label.width, None)
         label.height = 0 if not label.text else max(dp(32), texture_size[1] + dp(10))
 
+    def _resize_peer_detail_label(self, label: Label, texture_size: tuple[int, int]) -> None:
+        label.text_size = (label.width, None)
+        label.height = 0 if not label.text else max(dp(24), texture_size[1] + dp(8))
+
     def _set_status(self, text: str) -> None:
         self.status_label.text = text
 
     def _selected_peer(self) -> Peer | None:
         return self.peer_by_label.get(self.device_spinner.text)
+
+    def _update_selected_peer_details(self, *_args: object) -> None:
+        peer = self._selected_peer()
+        if peer is None:
+            self.peer_detail_label.text = ""
+            return
+        paired = self.translate("paired_suffix") if peer.shared_secret else ""
+        self.peer_detail_label.text = f"{peer.host}:{peer.port} · {peer.platform}{paired}"
 
     def _set_language_preference(self, _spinner: Spinner, label: str) -> None:
         code = next((key for key, value in self.language_labels.items() if value == label), None)
@@ -421,5 +447,4 @@ class EchoTextApp(App):
             Logger.warning(f"EchoText failed to hide Android loading screen: {exc}")
 
     def _peer_label(self, peer: Peer) -> str:
-        paired = self.translate("paired_suffix") if peer.shared_secret else ""
-        return f"{peer.name} ({peer.platform}) {peer.host}:{peer.port}{paired}"
+        return peer.name

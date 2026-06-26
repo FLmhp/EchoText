@@ -63,6 +63,21 @@ public class SettingsStore {
     public void savePeer(Peer peer) {
         try {
             JSONObject peers = new JSONObject(preferences.getString(KEY_PEERS, "{}"));
+            java.util.Iterator<String> keys = peers.keys();
+            java.util.List<String> duplicates = new java.util.ArrayList<>();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                if (key.equals(peer.deviceId)) {
+                    continue;
+                }
+                Peer existing = Peer.fromJson(peers.getJSONObject(key));
+                if (peerIdentityKey(existing).equals(peerIdentityKey(peer))) {
+                    duplicates.add(key);
+                }
+            }
+            for (String duplicate : duplicates) {
+                peers.remove(duplicate);
+            }
             peers.put(peer.deviceId, peer.toJson());
             preferences.edit().putString(KEY_PEERS, peers.toString()).apply();
         } catch (JSONException ignored) {
@@ -103,5 +118,9 @@ public class SettingsStore {
         String model = Build.MODEL == null ? "" : Build.MODEL.trim();
         String name = (manufacturer + " " + model).trim();
         return name.isEmpty() ? "EchoText Android" : name;
+    }
+
+    private static String peerIdentityKey(Peer peer) {
+        return peer.name.toLowerCase() + "\u0000" + peer.platform.toLowerCase();
     }
 }

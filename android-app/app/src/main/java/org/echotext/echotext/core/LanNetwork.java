@@ -32,6 +32,16 @@ public final class LanNetwork {
         return lanPriority(sourceHost) > lanPriority(advertisedHost);
     }
 
+    public static List<String> broadcastTargets(String host) {
+        List<String> targets = new ArrayList<>();
+        targets.add("255.255.255.255");
+        String derived = derivedBroadcastHost(host);
+        if (derived != null && !targets.contains(derived)) {
+            targets.add(derived);
+        }
+        return targets;
+    }
+
     private static List<String> ipv4Candidates() {
         Set<String> candidates = new LinkedHashSet<>();
         String socketIp = localIpFromSocket();
@@ -123,5 +133,13 @@ public final class LanNetwork {
         } catch (UnknownHostException exception) {
             return false;
         }
+    }
+
+    private static String derivedBroadcastHost(String host) {
+        if (!isValidIpv4(host)) {
+            return null;
+        }
+        String[] octets = host.split("\\.");
+        return octets[0] + "." + octets[1] + "." + octets[2] + ".255";
     }
 }

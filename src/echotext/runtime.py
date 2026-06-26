@@ -82,7 +82,7 @@ class EchoTextRuntime:
                     shared_secret=existing.shared_secret,
                 )
         peers = {**self._discovered_peers, **self._paired_peers}
-        return sorted(peers.values(), key=lambda peer: peer.name.lower())
+        return _dedupe_peers(sorted(peers.values(), key=lambda peer: peer.name.lower()))
 
     def pair_with_peer(self, peer: Peer, pair_code: str) -> Peer:
         """Pair with a peer using its visible code."""
@@ -153,3 +153,17 @@ class EchoTextRuntime:
     def _save_peer(self, peer: Peer) -> None:
         self._paired_peers[peer.device_id] = peer
         self.settings.save_peer(peer)
+
+
+def _dedupe_peers(peers: list[Peer]) -> list[Peer]:
+    chosen: dict[tuple[str, str], Peer] = {}
+    for peer in peers:
+        key = (peer.name.casefold(), peer.platform.casefold())
+        existing = chosen.get(key)
+        if existing is None or _peer_rank(peer) > _peer_rank(existing):
+            chosen[key] = peer
+    return sorted(chosen.values(), key=lambda peer: peer.name.lower())
+
+
+def _peer_rank(peer: Peer) -> tuple[float, int]:
+    return (peer.last_seen, 1 if peer.shared_secret else 0)
