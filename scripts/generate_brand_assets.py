@@ -57,7 +57,7 @@ def _render_icon(size: int) -> Image.Image:
 
 def _draw_echo_motif(draw: ImageDraw.ImageDraw, size: int) -> None:
     center_x = size * 0.5
-    center_y = size * 0.31
+    center_y = size * 0.345
     widths = [0.16, 0.24, 0.32]
     stroke_widths = [size * 0.018, size * 0.015, size * 0.012]
     colors = [ACCENT, GLOW, (49, 217, 255, 155)]
@@ -72,8 +72,8 @@ def _draw_echo_motif(draw: ImageDraw.ImageDraw, size: int) -> None:
         )
         draw.arc(box, start=205, end=335, fill=color, width=max(4, int(line_width)))
 
-    top_y = size * 0.46
-    stem_top = size * 0.48
+    top_y = size * 0.445
+    stem_top = size * 0.468
     stem_bottom = size * 0.68
     stem_half_width = size * 0.028
     cross_half_width = size * 0.12
@@ -89,7 +89,7 @@ def _draw_echo_motif(draw: ImageDraw.ImageDraw, size: int) -> None:
         fill=TEXT,
     )
     draw.rounded_rectangle(
-        (center_x - size * 0.10, size * 0.73, center_x + size * 0.10, size * 0.77),
+        (center_x - size * 0.10, size * 0.728, center_x + size * 0.10, size * 0.768),
         radius=int(size * 0.010),
         fill=GLOW,
     )
@@ -105,12 +105,12 @@ def _write_svg(path: Path) -> None:
   <rect x="82" y="82" width="860" height="860" rx="236" fill="{BACKGROUND}"/>
   <rect x="82" y="82" width="860" height="860" rx="236" stroke="{STROKE}" stroke-width="12"/>
   <rect x="122" y="122" width="780" height="780" rx="202" stroke="#49B7D8" stroke-opacity="0.35" stroke-width="8"/>
-  <path d="M 400 378 A 112 84 0 0 1 624 378" stroke="{ACCENT}" stroke-width="20" stroke-linecap="round"/>
-  <path d="M 360 337 A 152 114 0 0 1 664 337" stroke="{GLOW}" stroke-width="16" stroke-linecap="round"/>
-  <path d="M 320 296 A 192 144 0 0 1 704 296" stroke="{GLOW}" stroke-opacity="0.52" stroke-width="13" stroke-linecap="round"/>
-  <rect x="389" y="470" width="246" height="39" rx="16" fill="{TEXT}"/>
-  <rect x="483" y="491" width="58" height="210" rx="16" fill="{TEXT}"/>
-  <rect x="410" y="747" width="204" height="41" rx="10" fill="{GLOW}"/>
+  <path d="M 400 414 A 112 84 0 0 1 624 414" stroke="{ACCENT}" stroke-width="20" stroke-linecap="round"/>
+  <path d="M 360 373 A 152 114 0 0 1 664 373" stroke="{GLOW}" stroke-width="16" stroke-linecap="round"/>
+  <path d="M 320 332 A 192 144 0 0 1 704 332" stroke="{GLOW}" stroke-opacity="0.52" stroke-width="13" stroke-linecap="round"/>
+  <rect x="389" y="455" width="246" height="39" rx="16" fill="{TEXT}"/>
+  <rect x="483" y="479" width="58" height="217" rx="16" fill="{TEXT}"/>
+  <rect x="410" y="745" width="204" height="41" rx="10" fill="{GLOW}"/>
 </svg>
 """
     path.write_text(svg, encoding="utf-8")
@@ -167,12 +167,15 @@ def _write_android_assets(image: Image.Image) -> None:
 
 
 def _render_foreground(size: int) -> Image.Image:
-    scale = 4
-    canvas_size = size * scale
-    image = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    _draw_echo_motif(draw, canvas_size)
-    return image.resize((size, size), Image.Resampling.LANCZOS)
+    foreground = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    motif_size = int(size * 0.84)
+    motif = Image.new("RGBA", (motif_size, motif_size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(motif)
+    _draw_echo_motif(draw, motif_size)
+    offset_x = (size - motif_size) // 2
+    offset_y = int(size * 0.10)
+    foreground.alpha_composite(motif, (offset_x, offset_y))
+    return foreground
 
 
 if __name__ == "__main__":
