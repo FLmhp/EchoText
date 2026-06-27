@@ -49,6 +49,8 @@ Use the packaged artifacts from `dist/`:
 
 Keep both devices on the same LAN. The Windows installer automatically adds a `LocalSubnet` inbound rule for `EchoText.exe` on both Private and Public networks. If you run from source, still allow local network access when Windows prompts you.
 
+If the devices recently switched between dorm Wi-Fi, a phone hotspot, and the campus network, reopen both apps once. The latest build now advertises multiple LAN candidates and retries pairing or message delivery across those addresses automatically.
+
 ## Pair and Send
 
 1. Open EchoText on both devices.
@@ -147,10 +149,12 @@ Successful builds place these files in `dist/`:
 - Android build cannot find the SDK:
   Set `ANDROID_SDK_ROOT`, or install the SDK to `%LOCALAPPDATA%\Android\Sdk`.
 - Devices do not appear:
-  Make sure both devices are on the same Wi-Fi and that local broadcast traffic is not blocked. After upgrading, reopen both apps once so they can rebroadcast to `255.255.255.255` and the active subnet broadcast target.
+  Make sure both devices are on the same Wi-Fi and that local broadcast traffic is not blocked. After upgrading, reopen both apps once so they can rebroadcast to `255.255.255.255`, multiple local subnet broadcast targets, and retry remembered peer addresses.
+- Devices do not appear on the campus network:
+  Many campus networks split clients on the same SSID into different subnets or enable client/AP isolation. That can block both UDP discovery and direct device-to-device traffic. The latest build adds multi-address discovery and fallback retries, but if devices still cannot see each other, the network itself is usually preventing peer access. In that case, use dorm LAN or a phone hotspot, or confirm the policy with the network administrator.
 - Pairing fails:
-  Re-read the target six-digit pair code; codes expire after five minutes. If the Windows app is launched from source, also confirm Windows Defender Firewall allows the current process to access the local subnet.
+  Re-read the target six-digit pair code; codes expire after five minutes. If the devices recently changed networks, refresh the device list or reopen the apps so the latest address gets rebroadcast. If the Windows app is launched from source, also confirm Windows Defender Firewall allows the current process to access the local subnet.
 - Android can receive from Windows but cannot send back:
-  Upgrade both apps to the latest build, reopen both sides once so they republish the preferred LAN transport port, and re-pair if stale peer state is still cached.
+  This is usually caused by stale network addresses or a multi-interface routing mismatch. Upgrade both apps to the latest build and reopen them once; the new build stores and retries multiple peer addresses automatically. Re-pair if an old hotspot or Wi-Fi address is still cached.
 - Windows Chinese text still renders incorrectly:
   Install a common Chinese system font such as Microsoft YaHei, DengXian, SimHei, or Noto Sans SC, then restart EchoText.

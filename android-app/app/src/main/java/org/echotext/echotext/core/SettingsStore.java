@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -28,7 +29,7 @@ public class SettingsStore {
         this.preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    public DeviceIdentity identity(String host, int port) {
+    public DeviceIdentity identity(String host, int port, List<String> hosts) {
         if (!preferences.contains(KEY_DEVICE_ID)) {
             preferences.edit().putString(KEY_DEVICE_ID, UUID.randomUUID().toString().replace("-", "")).apply();
         }
@@ -40,7 +41,8 @@ public class SettingsStore {
                 preferences.getString(KEY_DEVICE_NAME, defaultDeviceName()),
                 "Android",
                 host,
-                port);
+                port,
+                LanNetwork.normalizeHosts(host, hosts));
     }
 
     public Map<String, Peer> loadPeers() {

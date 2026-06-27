@@ -12,8 +12,9 @@ class _FakeClient:
     def __init__(self) -> None:
         self.peer: Peer | None = None
 
-    def send_message(self, peer: Peer, _message: object) -> None:
+    def send_message(self, peer: Peer, _message: object) -> str:
         self.peer = peer
+        return peer.host
 
 
 def test_send_text_uses_selected_peer_connection_with_paired_secret(tmp_path: Path) -> None:
@@ -44,6 +45,7 @@ def test_send_text_uses_selected_peer_connection_with_paired_secret(tmp_path: Pa
     assert runtime.client.peer.host == "192.168.3.7"
     assert runtime.client.peer.port == 48735
     assert runtime.client.peer.shared_secret == "secret"
+    assert runtime.client.peer.hosts == ("192.168.3.7", "198.18.0.1")
 
 
 def test_peers_prefer_latest_seen_device_for_same_name_and_platform(tmp_path: Path) -> None:
@@ -134,3 +136,34 @@ def test_discovery_callback_fires_for_new_peer(tmp_path: Path) -> None:
 
     assert identity.device_id != "phone"
     assert changes == ["changed"]
+
+
+def test_peers_merge_discovered_and_paired_hosts(tmp_path: Path) -> None:
+    runtime = EchoTextRuntime(settings=SettingsStore(tmp_path))
+    runtime._paired_peers["phone"] = Peer(
+        device_id="phone",
+        name="Phone",
+        platform="Android",
+        host="192.168.43.236",
+        port=48735,
+        hosts=("192.168.43.236",),
+        last_seen=1.0,
+        shared_secret="secret",
+    )
+    payload = {
+        "magic": "ECHOTEXT_DISCOVERY_V1",
+        "device": {
+            "device_id": "phone",
+            "name": "Phone",
+            "platform": "Android",
+            "host": "172.21.100.161",
+            "hosts": ["172.21.100.161", "10.127.107.72"],
+            "port": 48735,
+        },
+    }
+
+    runtime.discovery._handle_packet(json.dumps(payload).encode("utf-8"), "172.21.100.161")  # noqa: SLF001
+
+    peer = runtime.peers()[0]
+    assert peer.host == "172.21.100.161"
+    assert peer.hosts == ("172.21.100.161", "10.127.107.72", "192.168.43.236")

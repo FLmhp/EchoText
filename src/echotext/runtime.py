@@ -8,7 +8,7 @@ from echotext.crypto import PairCode, generate_shared_secret
 from echotext.discovery import DiscoveryService
 from echotext.history import HistoryStore
 from echotext.models import DeviceIdentity, HistoryEntry, Peer, TextMessage
-from echotext.network import local_lan_ip
+from echotext.network import lan_ipv4_candidates, normalize_hosts
 from echotext.settings import SettingsStore
 from echotext.transport import TransportClient, TransportError, TransportServer
 
@@ -25,8 +25,9 @@ class EchoTextRuntime:
     ) -> None:
         self.settings = settings or SettingsStore()
         self.pair_code = PairCode()
-        self._host = local_lan_ip()
-        self._identity = self.settings.identity(self._host, 0)
+        self._hosts = tuple(lan_ipv4_candidates())
+        self._host = self._hosts[0] if self._hosts else "127.0.0.1"
+        self._identity = self.settings.identity(self._host, 0, self._hosts)
         self._paired_peers = self.settings.peers()
         self._discovered_peers: dict[str, Peer] = {}
         self.history = HistoryStore(self.settings.data_dir, self.settings.persistent_history_enabled())
@@ -47,7 +48,7 @@ class EchoTextRuntime:
         """Start network services."""
 
         self.server.start()
-        self._identity = self.settings.identity(self._host, self.server.port)
+        self._refresh_identity(self.server.port)
         self.discovery.start()
 
     def stop(self) -> None:
@@ -59,6 +60,7 @@ class EchoTextRuntime:
     def identity(self) -> DeviceIdentity:
         """Return the current local identity."""
 
+        self._refresh_identity(self.server.port)
         return self._identity
 
     def peer(self, device_id: str) -> Peer | None:
@@ -74,12 +76,14 @@ class EchoTextRuntime:
             if existing is None:
                 self._discovered_peers[discovered.device_id] = discovered
             else:
+                hosts = normalize_hosts(discovered.host, [*discovered.hosts, existing.host, *existing.hosts])
                 self._paired_peers[discovered.device_id] = Peer(
                     device_id=existing.device_id,
                     name=existing.name,
                     platform=existing.platform,
-                    host=discovered.host,
+                    host=hosts[0],
                     port=discovered.port,
+                    hosts=hosts,
                     last_seen=discovered.last_seen,
                     shared_secret=existing.shared_secret,
                 )
@@ -90,13 +94,17 @@ class EchoTextRuntime:
         """Pair with a peer using its visible code."""
 
         shared_secret = generate_shared_secret()
-        peer_identity = self.client.pair(peer, self.identity(), pair_code, shared_secret)
+        peer_identity, connected_host = self.client.pair(peer, self.identity(), pair_code, shared_secret)
+        if peer.device_id and peer_identity.device_id != peer.device_id:
+            raise TransportError("Reached another device at a stale address. Refresh the device list and try again.")
+        hosts = normalize_hosts(connected_host, [*peer.hosts, peer_identity.host, *peer_identity.hosts])
         paired = Peer(
             device_id=peer_identity.device_id,
             name=peer_identity.name,
             platform=peer_identity.platform,
-            host=peer.host,
+            host=hosts[0],
             port=peer_identity.port,
+            hosts=hosts,
             last_seen=time.time(),
             shared_secret=shared_secret,
         )
@@ -115,6 +123,7 @@ class EchoTextRuntime:
             platform=paired.platform,
             host=peer.host,
             port=peer.port,
+            hosts=normalize_hosts(peer.host, [*peer.hosts, paired.host, *paired.hosts]),
             last_seen=peer.last_seen,
             shared_secret=paired.shared_secret,
         )
@@ -125,7 +134,20 @@ class EchoTextRuntime:
             text=text,
             created_at=time.time(),
         )
-        self.client.send_message(active_peer, message)
+        connected_host = self.client.send_message(active_peer, message)
+        updated_hosts = normalize_hosts(connected_host, [*active_peer.hosts, paired.host, *paired.hosts])
+        self._save_peer(
+            Peer(
+                device_id=paired.device_id,
+                name=paired.name,
+                platform=paired.platform,
+                host=updated_hosts[0],
+                port=active_peer.port,
+                hosts=updated_hosts,
+                last_seen=time.time(),
+                shared_secret=paired.shared_secret,
+            )
+        )
         entry = HistoryEntry("sent", active_peer.name, text, message.created_at, message.message_id)
         self.history.add(entry)
         return entry
@@ -169,6 +191,15 @@ class EchoTextRuntime:
     def _save_peer(self, peer: Peer) -> None:
         self._paired_peers[peer.device_id] = peer
         self.settings.save_peer(peer)
+
+    def _refresh_identity(self, port: int) -> None:
+        hosts = tuple(lan_ipv4_candidates())
+        host = hosts[0] if hosts else "127.0.0.1"
+        if host == self._host and hosts == self._hosts and self._identity.port == port:
+            return
+        self._host = host
+        self._hosts = hosts
+        self._identity = self.settings.identity(host, port, hosts)
 
 
 def _dedupe_peers(peers: list[Peer]) -> list[Peer]:

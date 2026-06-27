@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import socket
 
 import pytest
@@ -92,3 +93,55 @@ def test_transport_server_falls_back_when_stable_port_is_taken() -> None:
     finally:
         server.stop()
         occupied_socket.close()
+
+
+def test_transport_client_retries_alternate_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    attempts: list[str] = []
+    client = TransportClient()
+    peer = Peer(
+        "receiver",
+        "Receiver",
+        "Windows",
+        "192.168.43.236",
+        48735,
+        ("192.168.43.236", "172.21.100.161"),
+    )
+    identity = DeviceIdentity("sender", "Sender", "Windows", "192.168.3.27", 48735)
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            payload = {
+                "device": {
+                    "device_id": "receiver",
+                    "name": "Receiver",
+                    "platform": "Windows",
+                    "host": "172.21.100.161",
+                    "hosts": ["172.21.100.161"],
+                    "port": 48735,
+                }
+            }
+            return json.dumps(payload).encode("utf-8")
+
+    def fake_urlopen(request: object, timeout: int) -> _Response:
+        full_url = request.full_url
+        attempts.append(full_url)
+        if "192.168.43.236" in full_url:
+            raise OSError("timed out")
+        return _Response()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result, connected_host = client.pair(peer, identity, "123456", "secret")
+
+    assert connected_host == "172.21.100.161"
+    assert result.device_id == "receiver"
+    assert attempts == [
+        "http://192.168.43.236:48735/api/v1/pair",
+        "http://172.21.100.161:48735/api/v1/pair",
+    ]

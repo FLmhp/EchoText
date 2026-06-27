@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from echotext.network import _best_lan_ip, broadcast_targets, should_prefer_source_host
+from echotext.network import _best_lan_ip, broadcast_targets, normalize_hosts, should_prefer_source_host
 
 
 def test_best_lan_ip_prefers_real_wlan_candidate_over_virtual_adapters() -> None:
@@ -15,3 +15,18 @@ def test_should_prefer_source_host_for_virtual_advertised_ip() -> None:
 
 def test_broadcast_targets_include_subnet_broadcast_after_global() -> None:
     assert broadcast_targets("192.168.3.27") == ["255.255.255.255", "192.168.3.255"]
+
+
+def test_broadcast_targets_include_each_known_subnet() -> None:
+    assert broadcast_targets(["192.168.3.27", "10.127.107.72"]) == [
+        "255.255.255.255",
+        "192.168.3.255",
+        "10.127.107.255",
+    ]
+
+
+def test_normalize_hosts_keeps_primary_and_deduplicates() -> None:
+    assert normalize_hosts("172.21.100.161", ["10.127.107.72", "172.21.100.161", "bad-host"]) == (
+        "172.21.100.161",
+        "10.127.107.72",
+    )

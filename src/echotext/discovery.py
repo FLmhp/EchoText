@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 
 from echotext.models import DeviceIdentity, Peer
-from echotext.network import broadcast_targets, should_prefer_source_host
+from echotext.network import broadcast_targets, normalize_hosts, should_prefer_source_host
 from echotext.serialization import dataclass_to_dict, identity_from_dict
 
 DISCOVERY_PORT = 48734
@@ -58,7 +58,7 @@ class DiscoveryService:
                 identity = self.identity_provider()
                 payload = {"magic": DISCOVERY_MAGIC, "device": dataclass_to_dict(identity)}
                 payload_bytes = json.dumps(payload).encode("utf-8")
-                for target in broadcast_targets(identity.host):
+                for target in broadcast_targets(identity.hosts or (identity.host,)):
                     sock.sendto(payload_bytes, (target, DISCOVERY_PORT))
                 self._stop_event.wait(2)
         finally:
@@ -96,12 +96,14 @@ class DiscoveryService:
             return
 
         host = source_host if should_prefer_source_host(identity.host, source_host) else identity.host
+        hosts = normalize_hosts(host, [source_host, *identity.hosts, identity.host])
         peer = Peer(
             device_id=identity.device_id,
             name=identity.name,
             platform=identity.platform,
-            host=host,
+            host=hosts[0],
             port=identity.port,
+            hosts=hosts,
             last_seen=time.time(),
         )
         existing = self._peers.get(peer.device_id)

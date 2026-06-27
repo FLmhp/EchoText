@@ -6,6 +6,7 @@ import java.net.NetworkInterface;
 import java.net.DatagramSocket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,11 +16,22 @@ public final class LanNetwork {
     private LanNetwork() {}
 
     public static String localLanIp() {
-        String best = bestLanIp(ipv4Candidates());
+        String best = bestLanIp(lanIpv4Candidates());
         if (best != null) {
             return best;
         }
         return "127.0.0.1";
+    }
+
+    public static List<String> lanIpv4Candidates() {
+        List<String> candidates = ipv4Candidates();
+        List<String> filtered = new ArrayList<>();
+        for (String candidate : candidates) {
+            if (lanPriority(candidate) > 0 && !filtered.contains(candidate)) {
+                filtered.add(candidate);
+            }
+        }
+        return filtered;
     }
 
     public static boolean shouldPreferSourceHost(String advertisedHost, String sourceHost) {
@@ -33,13 +45,32 @@ public final class LanNetwork {
     }
 
     public static List<String> broadcastTargets(String host) {
+        return broadcastTargets(Collections.singletonList(host));
+    }
+
+    public static List<String> broadcastTargets(List<String> hosts) {
         List<String> targets = new ArrayList<>();
         targets.add("255.255.255.255");
-        String derived = derivedBroadcastHost(host);
-        if (derived != null && !targets.contains(derived)) {
-            targets.add(derived);
+        for (String host : hosts) {
+            String derived = derivedBroadcastHost(host);
+            if (derived != null && !targets.contains(derived)) {
+                targets.add(derived);
+            }
         }
         return targets;
+    }
+
+    public static List<String> normalizeHosts(String primaryHost, List<String> extraHosts) {
+        List<String> hosts = new ArrayList<>();
+        if (isValidIpv4(primaryHost)) {
+            hosts.add(primaryHost);
+        }
+        for (String host : extraHosts) {
+            if (isValidIpv4(host) && !hosts.contains(host)) {
+                hosts.add(host);
+            }
+        }
+        return hosts;
     }
 
     private static List<String> ipv4Candidates() {

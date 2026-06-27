@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from collections.abc import Iterable
 from contextlib import suppress
 
 
 def local_lan_ip() -> str:
     """Best-effort LAN IP discovery without sending application data."""
 
-    candidates = _ipv4_candidates()
+    candidates = lan_ipv4_candidates()
     best = _best_lan_ip(candidates)
     return best or "127.0.0.1"
+
+
+def lan_ipv4_candidates() -> list[str]:
+    """Return valid, deduplicated IPv4 candidates for LAN communication."""
+
+    return [candidate for candidate in _ipv4_candidates() if _lan_priority(candidate) > 0]
 
 
 def should_prefer_source_host(advertised_host: str, source_host: str) -> bool:
@@ -25,13 +32,27 @@ def should_prefer_source_host(advertised_host: str, source_host: str) -> bool:
     return source_score > advertised_score
 
 
-def broadcast_targets(host: str) -> list[str]:
-    """Return broadcast targets for the active LAN host."""
+def normalize_hosts(primary_host: str, extra_hosts: Iterable[str] | None = None) -> tuple[str, ...]:
+    """Return deduplicated, valid LAN hosts with the preferred host first."""
+
+    ordered: list[str] = []
+    if _is_valid_ipv4(primary_host):
+        ordered.append(primary_host)
+    for host in extra_hosts or ():
+        if _is_valid_ipv4(host) and host not in ordered:
+            ordered.append(host)
+    return tuple(ordered)
+
+
+def broadcast_targets(hosts: str | Iterable[str]) -> list[str]:
+    """Return broadcast targets for one or more active LAN hosts."""
 
     targets = ["255.255.255.255"]
-    derived = _derived_broadcast_host(host)
-    if derived and derived not in targets:
-        targets.append(derived)
+    host_values = [hosts] if isinstance(hosts, str) else list(hosts)
+    for host in host_values:
+        derived = _derived_broadcast_host(host)
+        if derived and derived not in targets:
+            targets.append(derived)
     return targets
 
 

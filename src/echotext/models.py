@@ -12,6 +12,7 @@ class DeviceIdentity:
     platform: str
     host: str
     port: int
+    hosts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

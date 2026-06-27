@@ -6,12 +6,14 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from echotext.crypto import sign_payload, verify_signature
 from echotext.models import DeviceIdentity, Peer, TextMessage
+from echotext.network import normalize_hosts
 from echotext.serialization import dataclass_to_dict, identity_from_dict, message_from_dict
 
 DEFAULT_TRANSPORT_PORT = 48735
@@ -19,6 +21,12 @@ DEFAULT_TRANSPORT_PORT = 48735
 
 class TransportError(RuntimeError):
     """Raised when a peer request fails."""
+
+
+@dataclass(frozen=True)
+class _PostResult:
+    payload: Any
+    host: str
 
 
 class EchoRequestHandler(BaseHTTPRequestHandler):
@@ -67,12 +75,15 @@ class EchoRequestHandler(BaseHTTPRequestHandler):
             self._write_json({"error": "pair_code_rejected"}, HTTPStatus.FORBIDDEN)
             return
 
+        source_host = self.client_address[0]
+        hosts = normalize_hosts(source_host, [*peer_identity.hosts, peer_identity.host])
         peer = Peer(
             device_id=peer_identity.device_id,
             name=peer_identity.name,
             platform=peer_identity.platform,
-            host=peer_identity.host,
+            host=hosts[0],
             port=peer_identity.port,
+            hosts=hosts,
             last_seen=time.time(),
             shared_secret=shared_secret,
         )
@@ -208,7 +219,9 @@ def _bind_server(
 class TransportClient:
     """HTTP client for peer operations."""
 
-    def pair(self, peer: Peer, identity: DeviceIdentity, pair_code: str, shared_secret: str) -> DeviceIdentity:
+    def pair(
+        self, peer: Peer, identity: DeviceIdentity, pair_code: str, shared_secret: str
+    ) -> tuple[DeviceIdentity, str]:
         """Pair with a peer using the target device's visible code."""
 
         payload = {
@@ -217,21 +230,47 @@ class TransportClient:
             "shared_secret": shared_secret,
         }
         response = self._post(peer, "/api/v1/pair", payload)
-        return identity_from_dict(response["device"])
+        return identity_from_dict(response.payload["device"]), response.host
 
-    def send_message(self, peer: Peer, message: TextMessage) -> None:
+    def send_message(self, peer: Peer, message: TextMessage) -> str:
         """Send a signed message to a paired peer."""
 
         if peer.shared_secret is None:
             raise TransportError("Peer is not paired")
         payload = {"message": dataclass_to_dict(message)}
         headers = {"X-EchoText-Signature": sign_payload(peer.shared_secret, payload)}
-        self._post(peer, "/api/v1/messages", payload, headers=headers)
+        return self._post(peer, "/api/v1/messages", payload, headers=headers).host
 
-    def _post(self, peer: Peer, path: str, payload: dict[str, Any], headers: dict[str, str] | None = None) -> Any:
+    def _post(
+        self, peer: Peer, path: str, payload: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> _PostResult:
+        attempted_hosts = []
+        last_error: Exception | None = None
+        for host in normalize_hosts(peer.host, peer.hosts):
+            attempted_hosts.append(host)
+            try:
+                return self._post_to_host(host, peer.port, path, payload, headers=headers)
+            except TransportError as exc:
+                last_error = exc
+                if _should_retry_with_next_host(exc):
+                    continue
+                raise
+        detail = str(last_error or "Unable to reach peer")
+        if attempted_hosts:
+            detail = f"{detail} (tried: {', '.join(attempted_hosts)})"
+        raise TransportError(detail)
+
+    def _post_to_host(
+        self,
+        host: str,
+        port: int,
+        path: str,
+        payload: dict[str, Any],
+        headers: dict[str, str] | None = None,
+    ) -> _PostResult:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
-            f"http://{peer.host}:{peer.port}{path}",
+            f"http://{host}:{port}{path}",
             data=body,
             headers={
                 "Content-Type": "application/json; charset=utf-8",
@@ -247,4 +286,17 @@ class TransportClient:
             raise TransportError(f"Peer returned HTTP {exc.code}: {error_body}") from exc
         except OSError as exc:
             raise TransportError(str(exc)) from exc
-        return json.loads(data)
+        return _PostResult(json.loads(data), host)
+
+
+def _should_retry_with_next_host(error: TransportError) -> bool:
+    message = str(error).lower()
+    retry_markers = (
+        "timed out",
+        "refused",
+        "unreachable",
+        "failed to establish",
+        "host is down",
+        "network is unreachable",
+    )
+    return any(marker in message for marker in retry_markers)

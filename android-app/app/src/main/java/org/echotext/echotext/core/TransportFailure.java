@@ -32,4 +32,8 @@ public class TransportFailure extends IOException {
         this.statusCode = statusCode;
         this.detail = detail;
     }
+
+    public TransportFailure withDetail(String newDetail) {
+        return new TransportFailure(kind, newDetail, statusCode, getCause());
+    }
 }

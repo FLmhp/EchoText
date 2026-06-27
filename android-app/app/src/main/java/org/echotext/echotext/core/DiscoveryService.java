@@ -88,7 +88,7 @@ public class DiscoveryService {
                 payload.put("magic", DISCOVERY_MAGIC);
                 payload.put("device", identity.toJson());
                 byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
-                for (String target : LanNetwork.broadcastTargets(identity.host)) {
+                for (String target : LanNetwork.broadcastTargets(identity.hosts)) {
                     DatagramPacket packet =
                             new DatagramPacket(bytes, bytes.length, InetAddress.getByName(target), DISCOVERY_PORT);
                     broadcastSocket.send(packet);
@@ -146,9 +146,17 @@ public class DiscoveryService {
             }
             String sourceHost = packet.getAddress().getHostAddress();
             String host = LanNetwork.shouldPreferSourceHost(identity.host, sourceHost) ? sourceHost : identity.host;
+            java.util.List<String> hosts = LanNetwork.normalizeHosts(host, mergeHosts(sourceHost, identity.hosts, identity.host));
             Peer peer =
-                    new Peer(identity.deviceId, identity.name, identity.platform, host, identity.port,
-                            System.currentTimeMillis() / 1000.0, null);
+                    new Peer(
+                            identity.deviceId,
+                            identity.name,
+                            identity.platform,
+                            hosts.get(0),
+                            identity.port,
+                            hosts,
+                            System.currentTimeMillis() / 1000.0,
+                            null);
             peers.put(peer.deviceId, peer);
             onPeersChanged.run();
         } catch (Exception ignored) {
@@ -170,5 +178,13 @@ public class DiscoveryService {
         if (multicastLock != null && multicastLock.isHeld()) {
             multicastLock.release();
         }
+    }
+
+    private static List<String> mergeHosts(String sourceHost, List<String> identityHosts, String advertisedHost) {
+        List<String> merged = new ArrayList<>();
+        merged.add(sourceHost);
+        merged.add(advertisedHost);
+        merged.addAll(identityHosts);
+        return merged;
     }
 }

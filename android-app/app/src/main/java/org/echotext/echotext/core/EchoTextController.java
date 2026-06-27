@@ -56,8 +56,9 @@ public class EchoTextController {
         pairCodeManager = new PairCodeManager();
         historyStore = new HistoryStore(context, settings.isPersistentHistoryEnabled(), 100);
         transportClient = new TransportClient();
-        String host = LanNetwork.localLanIp();
-        identity = settings.identity(host, 0);
+        List<String> hosts = LanNetwork.lanIpv4Candidates();
+        String host = hosts.isEmpty() ? "127.0.0.1" : hosts.get(0);
+        identity = settings.identity(host, 0, hosts);
         pairedPeers = new LinkedHashMap<>(settings.loadPeers());
 
         transportServer = new TransportServer(
@@ -67,7 +68,7 @@ public class EchoTextController {
                 this::handleIncomingMessage,
                 this::handlePeerPaired);
         transportServer.start();
-        identity = settings.identity(host, transportServer.getPort());
+        refreshIdentity(transportServer.getPort());
 
         discoveryService = new DiscoveryService(context, this::getIdentity, this::notifyPeersChanged);
         discoveryService.start();
@@ -88,6 +89,7 @@ public class EchoTextController {
     }
 
     public DeviceIdentity getIdentity() {
+        refreshIdentity(transportServer == null ? 0 : transportServer.getPort());
         return identity;
     }
 
@@ -103,14 +105,18 @@ public class EchoTextController {
                 if (paired == null) {
                     merged.put(discovered.deviceId, discovered);
                 } else {
+                    List<String> hosts = LanNetwork.normalizeHosts(
+                            discovered.host,
+                            mergeHosts(discovered.hosts, paired.host, paired.hosts));
                     merged.put(
                             discovered.deviceId,
                             new Peer(
                                     paired.deviceId,
                                     paired.name,
                                     paired.platform,
-                                    discovered.host,
+                                    hosts.get(0),
                                     discovered.port,
+                                    hosts,
                                     discovered.lastSeen,
                                     paired.sharedSecret));
                 }
@@ -126,10 +132,24 @@ public class EchoTextController {
 
     public synchronized Peer pairWithPeer(Peer peer, String pairCode) throws IOException, JSONException {
         String sharedSecret = SecurityUtils.generateSharedSecret();
-        DeviceIdentity peerIdentity = transportClient.pair(peer, identity, pairCode, sharedSecret);
+        TransportClient.PairResult pairResult = transportClient.pair(peer, getIdentity(), pairCode, sharedSecret);
+        DeviceIdentity peerIdentity = pairResult.identity;
+        if (peer.deviceId != null && !peer.deviceId.isBlank() && !peer.deviceId.equals(peerIdentity.deviceId)) {
+            throw new IOException("Reached another device at a stale address. Refresh the device list and try again.");
+        }
+        List<String> hosts = LanNetwork.normalizeHosts(
+                pairResult.connectedHost,
+                mergeHosts(peer.hosts, peerIdentity.host, peerIdentity.hosts));
         Peer paired =
-                new Peer(peerIdentity.deviceId, peerIdentity.name, peerIdentity.platform, peer.host, peerIdentity.port,
-                        System.currentTimeMillis() / 1000.0, sharedSecret);
+                new Peer(
+                        peerIdentity.deviceId,
+                        peerIdentity.name,
+                        peerIdentity.platform,
+                        hosts.get(0),
+                        peerIdentity.port,
+                        hosts,
+                        System.currentTimeMillis() / 1000.0,
+                        sharedSecret);
         savePeer(paired);
         return paired;
     }
@@ -147,6 +167,7 @@ public class EchoTextController {
                         paired.platform,
                         peer.host,
                         peer.port,
+                        LanNetwork.normalizeHosts(peer.host, mergeHosts(peer.hosts, paired.host, paired.hosts)),
                         peer.lastSeen,
                         paired.sharedSecret);
         TextMessage message = new TextMessage(
@@ -155,7 +176,20 @@ public class EchoTextController {
                 identity.name,
                 text,
                 System.currentTimeMillis() / 1000.0);
-        transportClient.sendMessage(activePeer, message);
+        String connectedHost = transportClient.sendMessage(activePeer, message);
+        List<String> hosts = LanNetwork.normalizeHosts(
+                connectedHost,
+                mergeHosts(activePeer.hosts, paired.host, paired.hosts));
+        savePeer(
+                new Peer(
+                        paired.deviceId,
+                        paired.name,
+                        paired.platform,
+                        hosts.get(0),
+                        activePeer.port,
+                        hosts,
+                        System.currentTimeMillis() / 1000.0,
+                        paired.sharedSecret));
         HistoryEntry entry = new HistoryEntry("sent", activePeer.name, text, message.createdAt, message.messageId);
         latestText = text;
         historyStore.add(entry);
@@ -226,6 +260,25 @@ public class EchoTextController {
     private synchronized void savePeer(Peer peer) {
         pairedPeers.put(peer.deviceId, peer);
         settings.savePeer(peer);
+    }
+
+    private synchronized void refreshIdentity(int port) {
+        List<String> hosts = LanNetwork.lanIpv4Candidates();
+        String host = hosts.isEmpty() ? "127.0.0.1" : hosts.get(0);
+        if (identity != null
+                && identity.port == port
+                && identity.host.equals(host)
+                && identity.hosts.equals(LanNetwork.normalizeHosts(host, hosts))) {
+            return;
+        }
+        identity = settings.identity(host, port, hosts);
+    }
+
+    private static List<String> mergeHosts(List<String> hosts, String otherHost, List<String> otherHosts) {
+        List<String> merged = new ArrayList<>(hosts);
+        merged.add(otherHost);
+        merged.addAll(otherHosts);
+        return merged;
     }
 
     private static List<Peer> dedupePeers(List<Peer> peers) {

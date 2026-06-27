@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from echotext.models import DeviceIdentity, Peer
+from echotext.network import normalize_hosts
 from echotext.serialization import peer_from_dict
 
 
@@ -63,7 +64,7 @@ class SettingsStore:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
-    def identity(self, host: str, port: int) -> DeviceIdentity:
+    def identity(self, host: str, port: int, hosts: tuple[str, ...] | None = None) -> DeviceIdentity:
         """Return the local identity, creating stable values on first run."""
 
         if "device_id" not in self.data:
@@ -77,6 +78,7 @@ class SettingsStore:
             platform=platform.system() or "Unknown",
             host=host,
             port=port,
+            hosts=normalize_hosts(host, hosts or (host,)),
         )
 
     def peers(self) -> dict[str, Peer]:

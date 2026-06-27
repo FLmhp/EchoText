@@ -123,13 +123,20 @@ public class TransportServer {
             String path = requestParts[1];
             Map<String, String> headers = readHeaders(input);
             byte[] body = readBody(input, headers);
-            route(method, path, headers, body, output);
+            String sourceHost = socket.getInetAddress() == null ? "" : socket.getInetAddress().getHostAddress();
+            route(method, path, headers, body, output, sourceHost);
         } catch (Exception ignored) {
             // Best-effort request handling.
         }
     }
 
-    private void route(String method, String path, Map<String, String> headers, byte[] body, OutputStream output)
+    private void route(
+            String method,
+            String path,
+            Map<String, String> headers,
+            byte[] body,
+            OutputStream output,
+            String sourceHost)
             throws Exception {
         if ("GET".equals(method) && "/api/v1/hello".equals(path)) {
             JSONObject payload = new JSONObject();
@@ -151,7 +158,7 @@ public class TransportServer {
         }
 
         if ("/api/v1/pair".equals(path)) {
-            handlePair(payload, output);
+            handlePair(payload, output, sourceHost);
             return;
         }
         if ("/api/v1/messages".equals(path)) {
@@ -161,7 +168,7 @@ public class TransportServer {
         writeJson(output, 404, new JSONObject().put("error", "not_found"));
     }
 
-    private void handlePair(JSONObject payload, OutputStream output) throws Exception {
+    private void handlePair(JSONObject payload, OutputStream output, String sourceHost) throws Exception {
         try {
             DeviceIdentity identity = DeviceIdentity.fromJson(payload.getJSONObject("device"));
             String pairCode = payload.getString("pair_code");
@@ -170,12 +177,14 @@ public class TransportServer {
                 writeJson(output, 403, new JSONObject().put("error", "pair_code_rejected"));
                 return;
             }
+            java.util.List<String> hosts = LanNetwork.normalizeHosts(sourceHost, mergeHosts(identity.hosts, identity.host));
             Peer peer = new Peer(
                     identity.deviceId,
                     identity.name,
                     identity.platform,
-                    identity.host,
+                    hosts.get(0),
                     identity.port,
+                    hosts,
                     System.currentTimeMillis() / 1000.0,
                     sharedSecret);
             pairHandler.onPeerPaired(peer);
@@ -282,5 +291,11 @@ public class TransportServer {
         output.write(headers.getBytes(StandardCharsets.UTF_8));
         output.write(body);
         output.flush();
+    }
+
+    private static java.util.List<String> mergeHosts(java.util.List<String> identityHosts, String advertisedHost) {
+        java.util.List<String> merged = new java.util.ArrayList<>(identityHosts);
+        merged.add(advertisedHost);
+        return merged;
     }
 }
