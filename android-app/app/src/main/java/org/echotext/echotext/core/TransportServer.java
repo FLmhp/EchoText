@@ -157,7 +157,7 @@ public class TransportServer {
             return;
         }
         if ("/api/v1/messages".equals(path)) {
-            handleMessage(payload, headers, output);
+            handleMessage(payload, headers, output, sourceHost);
             return;
         }
         writeJson(output, 404, new JSONObject().put("error", "not_found"));
@@ -192,7 +192,7 @@ public class TransportServer {
         }
     }
 
-    private void handleMessage(JSONObject payload, Map<String, String> headers, OutputStream output)
+    private void handleMessage(JSONObject payload, Map<String, String> headers, OutputStream output, String sourceHost)
             throws Exception {
         try {
             TextMessage message = TextMessage.fromJson(payload.getJSONObject("message"));
@@ -206,7 +206,17 @@ public class TransportServer {
                 writeJson(output, 403, new JSONObject().put("error", "invalid_signature"));
                 return;
             }
-            messageHandler.onMessage(message, peer);
+            java.util.List<String> hosts = LanNetwork.normalizeHosts(sourceHost, mergeHosts(peer.hosts, peer.host));
+            Peer activePeer = new Peer(
+                    peer.deviceId,
+                    peer.name,
+                    peer.platform,
+                    hosts.get(0),
+                    peer.port,
+                    hosts,
+                    System.currentTimeMillis() / 1000.0,
+                    peer.sharedSecret);
+            messageHandler.onMessage(message, activePeer);
             writeJson(output, 200, new JSONObject().put("ok", true));
         } catch (JSONException exception) {
             writeJson(output, 400, new JSONObject().put("error", "invalid_message_payload"));

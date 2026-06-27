@@ -166,8 +166,14 @@ def _ipv6_candidates() -> list[str]:
     candidates: list[str] = []
     hostname = socket.gethostname()
     with suppress(OSError):
-        candidates.extend(item[4][0] for item in socket.getaddrinfo(hostname, None, socket.AF_INET6))
-    return _dedupe([candidate for candidate in candidates if _normalize_ipv6(candidate) is not None])
+        for item in socket.getaddrinfo(hostname, None, socket.AF_INET6):
+            normalized = _normalize_ipv6(item[4][0])
+            if normalized is None:
+                continue
+            if normalized == "::1" or normalized.lower().startswith("fe80:"):
+                continue
+            candidates.append(normalized)
+    return _dedupe(candidates)
 
 
 def _probe_ips() -> list[str]:
@@ -279,9 +285,12 @@ def _normalize_ipv6(candidate: str) -> str | None:
     if "%" in stripped:
         stripped = stripped.split("%", maxsplit=1)[0]
     try:
-        return str(ipaddress.IPv6Address(stripped))
+        address = ipaddress.IPv6Address(stripped)
     except ipaddress.AddressValueError:
         return None
+    if address.ipv4_mapped is not None:
+        return str(address.ipv4_mapped)
+    return str(address)
 
 
 def _normalize_ip_literal(candidate: str) -> str | None:

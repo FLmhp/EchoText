@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import socket
 import threading
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -107,7 +109,19 @@ class EchoRequestHandler(BaseHTTPRequestHandler):
             self._write_json({"error": "invalid_signature"}, HTTPStatus.FORBIDDEN)
             return
 
-        self.server.on_message(message, peer)
+        source_host = self.client_address[0]
+        hosts = normalize_hosts(source_host, [peer.host, *peer.hosts])
+        active_peer = Peer(
+            device_id=peer.device_id,
+            name=peer.name,
+            platform=peer.platform,
+            host=hosts[0],
+            port=peer.port,
+            hosts=hosts,
+            last_seen=time.time(),
+            shared_secret=peer.shared_secret,
+        )
+        self.server.on_message(message, active_peer)
         self._write_json({"ok": True})
 
     def _read_json(self) -> dict[str, Any]:
@@ -145,6 +159,20 @@ class EchoHTTPServer(ThreadingHTTPServer):
         self.peer_provider = peer_provider
         self.on_message = on_message
         self.on_peer_paired = on_peer_paired
+
+
+class DualStackEchoHTTPServer(EchoHTTPServer):
+    """HTTP server that accepts IPv6 and IPv4-mapped clients when supported."""
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self) -> None:
+        if hasattr(socket, "IPPROTO_IPV6") and hasattr(socket, "IPV6_V6ONLY"):
+            with suppress(OSError):
+                self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            if self.socket.getsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY) != 0:
+                raise OSError("IPv6 socket stayed v6-only")
+        super().server_bind()
 
 
 class TransportServer:
@@ -196,14 +224,35 @@ def _bind_server(
     on_message: Callable[[TextMessage, Peer], None],
     on_peer_paired: Callable[[Peer], None],
 ) -> EchoHTTPServer:
-    return EchoHTTPServer(
-        ("", preferred_port),
-        identity_provider,
-        pair_code_matches,
-        peer_provider,
-        on_message,
-        on_peer_paired,
-    )
+    if preferred_port != 0:
+        _ensure_preferred_port_available(preferred_port)
+
+    server_specs: list[tuple[type[EchoHTTPServer], tuple[object, ...]]] = []
+    if socket.has_ipv6:
+        server_specs.append((DualStackEchoHTTPServer, ("::", preferred_port, 0, 0)))
+    server_specs.append((EchoHTTPServer, ("", preferred_port)))
+
+    last_error: OSError | None = None
+    for server_class, address in server_specs:
+        try:
+            return server_class(
+                address,
+                identity_provider,
+                pair_code_matches,
+                peer_provider,
+                on_message,
+                on_peer_paired,
+            )
+        except OSError as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    raise OSError("Unable to bind EchoText transport server")
+
+
+def _ensure_preferred_port_available(port: int) -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("", port))
 
 
 class TransportClient:

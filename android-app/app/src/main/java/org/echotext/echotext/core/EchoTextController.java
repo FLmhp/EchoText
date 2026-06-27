@@ -286,6 +286,7 @@ public class EchoTextController {
     }
 
     private synchronized void handleIncomingMessage(TextMessage message, Peer peer) {
+        savePeer(peer);
         HistoryEntry entry = new HistoryEntry("received", peer.name, message.text, message.createdAt, message.messageId);
         latestText = message.text;
         historyStore.add(entry);

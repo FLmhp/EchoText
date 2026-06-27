@@ -46,6 +46,25 @@ def test_build_environment_diagnosis_accepts_public_localsubnet_scope(tmp_path: 
     assert diagnosis.warning_key == ""
 
 
+def test_build_environment_diagnosis_accepts_public_any_scope(tmp_path: Path) -> None:
+    diagnosis = desktop_env.build_environment_diagnosis(
+        host="192.168.1.10",
+        font_ok=True,
+        rules=[
+            desktop_env.FirewallRuleInfo(
+                enabled=True,
+                profiles=("private", "public"),
+                program=str(tmp_path / "EchoText.exe"),
+                remote_addresses=("any",),
+            )
+        ],
+        executable=tmp_path / "EchoText.exe",
+    )
+
+    assert diagnosis.firewall_scope == "public+any"
+    assert diagnosis.warning_key == ""
+
+
 def test_build_environment_diagnosis_reports_private_only_rule(tmp_path: Path) -> None:
     diagnosis = desktop_env.build_environment_diagnosis(
         host="192.168.1.10",

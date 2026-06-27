@@ -235,7 +235,7 @@ public final class LanNetwork {
                     }
                 }
             } catch (UnknownHostException ignored) {
-                // Fall through with interface scan.
+                // Fall through with an empty hostname result.
             }
         }
 
@@ -260,6 +260,7 @@ public final class LanNetwork {
         } catch (Exception ignored) {
             // Best effort only.
         }
+
         return new ArrayList<>(candidates);
     }
 

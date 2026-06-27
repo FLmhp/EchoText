@@ -5,6 +5,7 @@ from echotext.network import (
     broadcast_targets,
     format_http_host,
     lan_ipv4_candidates,
+    lan_ipv6_candidates,
     normalize_hosts,
     parse_host_endpoint,
     should_prefer_source_host,
@@ -63,6 +64,25 @@ def test_normalize_hosts_keeps_ipv6_literals() -> None:
         "2403:ac00:b101:387::1234",
         "192.168.3.27",
     )
+
+
+def test_normalize_hosts_collapses_ipv4_mapped_ipv6() -> None:
+    assert normalize_hosts("::ffff:172.21.100.161", ["172.21.100.161"]) == ("172.21.100.161",)
+
+
+def test_lan_ipv6_candidates_follow_reference_hostname_resolution(monkeypatch) -> None:
+    monkeypatch.setattr("echotext.network.socket.gethostname", lambda: "echotext-host")
+    monkeypatch.setattr(
+        "echotext.network.socket.getaddrinfo",
+        lambda host, _port, family: [
+            (family, None, None, None, ("240c:c983:1:7119:692a:a3d0:9ee:c1d%21", 0, 0, 0)),
+            (family, None, None, None, ("::1", 0, 0, 0)),
+            (family, None, None, None, ("fe80::1234%8", 0, 0, 0)),
+            (family, None, None, None, ("240c:c983:1:7119:692a:a3d0:9ee:c1d", 0, 0, 0)),
+        ],
+    )
+
+    assert lan_ipv6_candidates() == ["240c:c983:1:7119:692a:a3d0:9ee:c1d"]
 
 
 def test_subnet_scan_targets_follow_reference_same_24_scan() -> None:

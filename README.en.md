@@ -33,6 +33,8 @@
 - Transport: HTTP `POST /api/v1/pair` and `POST /api/v1/messages`
 - Integrity: per-peer HMAC-SHA256 signatures
 - Clipboard workflow: paste, send, copy latest text, and optional foreground auto sync
+- Manual direct connect: enter IPv4 or `[IPv6]:port` yourself and copy the current device IPv6 address with one click
+- Two-way return-path fix: the desktop app now listens on both IPv4 and IPv6 and learns the latest source address from incoming requests, which avoids stale peer routes that can receive but not reply
 - History: in-memory by default with optional local persistence
 - Branding: one shared icon set for Android launcher assets, Windows EXE, the Kivy window, and the installer
 - App language: both the desktop and Android apps now ship with a fixed Simplified Chinese UI and no in-app language switch
@@ -47,7 +49,7 @@ Use the packaged artifacts from `dist/`:
 - Windows: `EchoText-Setup-v0.1.0.exe`
 - Source: `EchoText-source-v0.1.0.zip`
 
-Keep both devices on the same LAN. The Windows installer automatically adds a `LocalSubnet` inbound rule for `EchoText.exe` on both Private and Public networks. If you run from source, still allow local network access when Windows prompts you.
+Keep both devices on the same LAN. The Windows installer automatically adds an inbound rule for `EchoText.exe` on both Private and Public networks and allows EchoText to accept real IPv4 and IPv6 peer traffic on campus Wi-Fi, hotspots, and home LANs. If you run from source, still allow local network access when Windows prompts you.
 
 If the devices recently switched between dorm Wi-Fi, a phone hotspot, and the campus network, reopen both apps once. The latest build now advertises multiple LAN candidates and retries pairing or message delivery across those addresses automatically.
 
@@ -61,6 +63,8 @@ If the devices recently switched between dorm Wi-Fi, a phone hotspot, and the ca
 6. Received text is written to the history panel and can be copied back with one click.
 
 Foreground auto sync mirrors clipboard changes only while the app remains open in the foreground. The current app UI is fixed to Simplified Chinese.
+
+The `Copy IPv6` action now follows the same address selection style as `program_sharer_pc_stable.py`: it combines local hostname resolution with direct network-interface scanning for `AF_INET6` addresses, strips the zone id, and excludes `::1` plus link-local `fe80::` addresses so the copied address is suitable for real peer-to-peer LAN use.
 
 ## Development
 
@@ -155,6 +159,8 @@ Successful builds place these files in `dist/`:
 - Pairing fails:
   Re-read the target six-digit pair code; codes expire after five minutes. If the devices recently changed networks, refresh the device list or reopen the apps so the latest address gets rebroadcast. If the Windows app is launched from source, also confirm Windows Defender Firewall allows the current process to access the local subnet.
 - Android can receive from Windows but cannot send back:
-  This is usually caused by stale network addresses or a multi-interface routing mismatch. Upgrade both apps to the latest build and reopen them once; the new build stores and retries multiple peer addresses automatically. Re-pair if an old hotspot or Wi-Fi address is still cached.
+  Older builds could hit a stale Windows address cache or a desktop listener that was still IPv4-only. The latest build adds dual-stack desktop listening and refreshes the saved peer route from the actual incoming source address. After upgrading, reopen both apps once; if it still fails, use manual direct connect once or re-pair to replace an old hotspot or Wi-Fi address.
+- The copied IPv6 address still does not work / Android shows no shareable IPv6 address:
+  The Android app now scans network interfaces directly for IPv6 addresses (just as it does for IPv4), in addition to hostname resolution. If direct IPv6 access still fails, the LAN usually is not providing usable IPv6 peer routing between the two devices.
 - Windows Chinese text still renders incorrectly:
   Install a common Chinese system font such as Microsoft YaHei, DengXian, SimHei, or Noto Sans SC, then restart EchoText.

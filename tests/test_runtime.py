@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from echotext.models import Peer
+from echotext.models import Peer, TextMessage
 from echotext.runtime import EchoTextRuntime
 from echotext.settings import SettingsStore
 
@@ -115,6 +115,43 @@ def test_runtime_persists_auto_sync_preference(tmp_path: Path) -> None:
     runtime.set_auto_sync_enabled(True)
 
     assert runtime.auto_sync_enabled() is True
+
+
+def test_incoming_message_refreshes_saved_peer_address(tmp_path: Path) -> None:
+    runtime = EchoTextRuntime(settings=SettingsStore(tmp_path))
+    runtime._paired_peers["pc"] = Peer(
+        device_id="pc",
+        name="PC",
+        platform="Windows",
+        host="2403:ac00:b101:1904:59fa:30d5:5be5:f737",
+        port=48735,
+        hosts=("2403:ac00:b101:1904:59fa:30d5:5be5:f737",),
+        last_seen=1.0,
+        shared_secret="secret",
+    )
+
+    runtime._handle_message(
+        TextMessage("message-id", "pc", "PC", "hello", 2.0),
+        Peer(
+            device_id="pc",
+            name="PC",
+            platform="Windows",
+            host="2403:ac00:b101:1904:c6a4:9ef7:84f9:40d8",
+            port=48735,
+            hosts=(
+                "2403:ac00:b101:1904:c6a4:9ef7:84f9:40d8",
+                "2403:ac00:b101:1904:59fa:30d5:5be5:f737",
+            ),
+            last_seen=2.0,
+            shared_secret="secret",
+        ),
+    )
+
+    assert runtime._paired_peers["pc"].host == "2403:ac00:b101:1904:c6a4:9ef7:84f9:40d8"
+    assert runtime._paired_peers["pc"].hosts == (
+        "2403:ac00:b101:1904:c6a4:9ef7:84f9:40d8",
+        "2403:ac00:b101:1904:59fa:30d5:5be5:f737",
+    )
 
 
 def test_discovery_callback_fires_for_new_peer(tmp_path: Path) -> None:

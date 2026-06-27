@@ -218,6 +218,7 @@ class EchoTextRuntime:
         return self.settings.auto_sync_enabled()
 
     def _handle_message(self, message: TextMessage, peer: Peer) -> None:
+        self._save_peer(peer)
         entry = HistoryEntry("received", peer.name, message.text, message.created_at, message.message_id)
         self.history.add(entry)
         if self._on_message is not None:
