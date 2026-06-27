@@ -45,6 +45,7 @@ public final class LanNetwork {
                 filtered.add(candidate);
             }
         }
+        filtered.sort((left, right) -> compareIpv4Priority(right, left));
         return filtered;
     }
 
@@ -55,6 +56,7 @@ public final class LanNetwork {
                 filtered.add(candidate);
             }
         }
+        filtered.sort((left, right) -> compareIpv6Priority(right, left));
         return filtered;
     }
 
@@ -360,6 +362,38 @@ public final class LanNetwork {
             score -= 45;
         }
         return score;
+    }
+
+    private static int compareIpv4Priority(String left, String right) {
+        int leftScore = lanPriority(left);
+        int rightScore = lanPriority(right);
+        if (leftScore != rightScore) {
+            return Integer.compare(leftScore, rightScore);
+        }
+        boolean leftPreferred = left.startsWith("192.168.");
+        boolean rightPreferred = right.startsWith("192.168.");
+        return Boolean.compare(leftPreferred, rightPreferred);
+    }
+
+    private static int compareIpv6Priority(String left, String right) {
+        int leftScore = ipv6Priority(left);
+        int rightScore = ipv6Priority(right);
+        return Integer.compare(leftScore, rightScore);
+    }
+
+    private static int ipv6Priority(String candidate) {
+        try {
+            InetAddress address = InetAddress.getByName(candidate);
+            if (!(address instanceof Inet6Address)) {
+                return 0;
+            }
+            if (address.isSiteLocalAddress()) {
+                return 2;
+            }
+            return 1;
+        } catch (UnknownHostException exception) {
+            return 0;
+        }
     }
 
     private static boolean isGoodIpv4(String candidate) {

@@ -4,6 +4,7 @@ from echotext.network import (
     _best_lan_ip,
     broadcast_targets,
     format_http_host,
+    lan_ipv4_candidates,
     normalize_hosts,
     parse_host_endpoint,
     should_prefer_source_host,
@@ -15,6 +16,17 @@ def test_best_lan_ip_prefers_real_wlan_candidate_over_virtual_adapters() -> None
     best = _best_lan_ip(["198.18.0.1", "172.24.240.1", "192.168.205.1", "192.168.8.1", "192.168.3.27"])
 
     assert best == "192.168.3.27"
+
+
+def test_lan_ipv4_candidates_are_sorted_by_preferred_real_network(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "echotext.network._ipv4_candidates",
+        lambda: ["172.28.80.1", "192.168.205.1", "192.168.8.1", "192.168.3.27"],
+    )
+
+    assert lan_ipv4_candidates() == ["192.168.3.27", "192.168.205.1", "192.168.8.1", "172.28.80.1"]
 
 
 def test_should_prefer_source_host_for_virtual_advertised_ip() -> None:

@@ -29,13 +29,15 @@ def local_lan_ip() -> str:
 def lan_ipv4_candidates() -> list[str]:
     """Return valid IPv4 candidates discovered from the real network."""
 
-    return [candidate for candidate in _ipv4_candidates() if _lan_priority(candidate) > 0]
+    candidates = [candidate for candidate in _ipv4_candidates() if _lan_priority(candidate) > 0]
+    return sorted(candidates, key=_lan_sort_key, reverse=True)
 
 
 def lan_ipv6_candidates() -> list[str]:
     """Return non-link-local IPv6 candidates that can be shared directly."""
 
-    return _dedupe([candidate for candidate in _ipv6_candidates() if _is_good_ipv6(candidate)])
+    candidates = [candidate for candidate in _ipv6_candidates() if _is_good_ipv6(candidate)]
+    return sorted(_dedupe(candidates), key=_ipv6_sort_key, reverse=True)
 
 
 def should_prefer_source_host(advertised_host: str, source_host: str) -> bool:
@@ -211,6 +213,18 @@ def _best_lan_ip(candidates: list[str]) -> str | None:
     if not scored:
         return None
     return max(scored, key=_lan_priority)
+
+
+def _lan_sort_key(candidate: str) -> tuple[int, int]:
+    return (_lan_priority(candidate), 1 if candidate.startswith("192.168.") else 0)
+
+
+def _ipv6_sort_key(candidate: str) -> tuple[int, int]:
+    try:
+        address = ipaddress.IPv6Address(candidate)
+    except ipaddress.AddressValueError:
+        return (0, 0)
+    return (2 if address.is_private else 1, 1 if not address.teredo else 0)
 
 
 def _lan_priority(candidate: str) -> int:
