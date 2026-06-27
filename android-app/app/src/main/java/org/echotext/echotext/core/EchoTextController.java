@@ -214,6 +214,14 @@ public class EchoTextController {
         return settings.isAutoSyncEnabled();
     }
 
+    public synchronized void refreshDiscovery() {
+        if (!started || discoveryService == null) {
+            return;
+        }
+        refreshIdentity(transportServer == null ? 0 : transportServer.getPort());
+        discoveryService.probe();
+    }
+
     public synchronized void clearHistory() {
         latestText = "";
         historyStore.clear();

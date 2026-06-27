@@ -59,6 +59,32 @@ def normalize_hosts(primary_host: str, extra_hosts: Iterable[str] | None = None)
     return tuple(ordered)
 
 
+def subnet_scan_targets(hosts: Iterable[str]) -> tuple[str, ...]:
+    """Return prioritized IPv4 scan targets from the active LAN subnet(s)."""
+
+    local_hosts = [host for host in _dedupe(list(hosts)) if _is_valid_ipv4(host)]
+    interface_by_host = {interface.address: interface for interface in _ipv4_interfaces()}
+    targets: list[str] = []
+    seen = set(local_hosts)
+    remaining_budget = 8192
+
+    for host in local_hosts:
+        interface = interface_by_host.get(host)
+        if interface is None:
+            candidates = _scan_targets_same_24(host, max_hosts=remaining_budget)
+        else:
+            candidates = _scan_targets_for_interface(host, interface.netmask, max_hosts=remaining_budget)
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            targets.append(candidate)
+            remaining_budget -= 1
+            if remaining_budget <= 0:
+                return tuple(targets)
+    return tuple(targets)
+
+
 def broadcast_targets(hosts: str | Iterable[str]) -> list[str]:
     """Return broadcast targets for one or more active LAN hosts."""
 
@@ -68,6 +94,9 @@ def broadcast_targets(hosts: str | Iterable[str]) -> list[str]:
         broadcast = _broadcast_host(host)
         if broadcast and broadcast not in targets:
             targets.append(broadcast)
+        for extra_target in _legacy_private_broadcast_hosts(host):
+            if extra_target not in targets:
+                targets.append(extra_target)
     return targets
 
 
@@ -232,3 +261,62 @@ def _derived_broadcast_host(host: str) -> str | None:
         return None
     octets = host.split(".")
     return ".".join([octets[0], octets[1], octets[2], "255"])
+
+
+def _legacy_private_broadcast_hosts(host: str) -> tuple[str, ...]:
+    if not _is_valid_ipv4(host):
+        return ()
+    octets = host.split(".")
+    first = int(octets[0])
+    second = int(octets[1])
+    if first == 10 or (first == 172 and 16 <= second <= 31):
+        return (f"{octets[0]}.{octets[1]}.255.255",)
+    return ()
+
+
+def _scan_targets_same_24(host: str, max_hosts: int) -> list[str]:
+    octets = host.split(".")
+    prefix = ".".join(octets[:3]) + "."
+    return [f"{prefix}{suffix}" for suffix in range(1, min(255, max_hosts + 1))]
+
+
+def _scan_targets_for_interface(host: str, netmask: str, max_hosts: int) -> list[str]:
+    try:
+        network = ipaddress.IPv4Network(f"{host}/{netmask}", strict=False)
+    except ValueError:
+        return _scan_targets_same_24(host, max_hosts=max_hosts)
+
+    local_address = ipaddress.IPv4Address(host)
+    if network.prefixlen >= 24:
+        return [str(address) for address in network.hosts() if address != local_address][:max_hosts]
+
+    ordered_blocks = _ordered_24_blocks(network, local_address)
+    results: list[str] = []
+    lower = int(network.network_address)
+    upper = int(network.broadcast_address)
+    local_value = int(local_address)
+    for block in ordered_blocks:
+        block_start = max(block << 8, lower + 1)
+        block_end = min((block << 8) + 254, upper - 1)
+        for value in range(block_start, block_end + 1):
+            if value == local_value:
+                continue
+            results.append(str(ipaddress.IPv4Address(value)))
+            if len(results) >= max_hosts:
+                return results
+    return results
+
+
+def _ordered_24_blocks(network: ipaddress.IPv4Network, local_address: ipaddress.IPv4Address) -> list[int]:
+    start_block = int(network.network_address) >> 8
+    end_block = int(network.broadcast_address) >> 8
+    local_block = int(local_address) >> 8
+    ordered = [local_block]
+    for offset in range(1, (end_block - start_block) + 1):
+        upper = local_block + offset
+        lower = local_block - offset
+        if upper <= end_block:
+            ordered.append(upper)
+        if lower >= start_block:
+            ordered.append(lower)
+    return ordered

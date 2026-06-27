@@ -189,7 +189,10 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         Button copyLatestButton = findViewById(R.id.copy_latest_button);
         Button clearButton = findViewById(R.id.clear_button);
 
-        refreshButton.setOnClickListener(view -> refreshUi());
+        refreshButton.setOnClickListener(view -> {
+            controller.refreshDiscovery();
+            refreshUi();
+        });
         pairButton.setOnClickListener(view -> pairSelectedPeer());
         pasteButton.setOnClickListener(view -> {
             String clipboardText = readClipboardText();
@@ -230,6 +233,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     }
 
     private void refreshUi() {
+        controller.refreshDiscovery();
         refreshPairCode();
         refreshPeerList();
         refreshHistory();

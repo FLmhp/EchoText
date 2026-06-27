@@ -241,6 +241,22 @@ class TransportClient:
         headers = {"X-EchoText-Signature": sign_payload(peer.shared_secret, payload)}
         return self._post(peer, "/api/v1/messages", payload, headers=headers).host
 
+    def hello(self, host: str, port: int, timeout: float = 0.35) -> DeviceIdentity:
+        """Fetch peer identity metadata from a candidate host."""
+
+        request = urllib.request.Request(
+            f"http://{host}:{port}/api/v1/hello",
+            headers={"Accept": "application/json"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                data = response.read().decode("utf-8")
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            raise TransportError(str(exc)) from exc
+        payload = json.loads(data)
+        return identity_from_dict(payload["device"])
+
     def _post(
         self, peer: Peer, path: str, payload: dict[str, Any], headers: dict[str, str] | None = None
     ) -> _PostResult:

@@ -163,6 +163,12 @@ class EchoTextRuntime:
 
         self.history.clear()
 
+    def refresh_discovery(self) -> None:
+        """Trigger an active discovery probe."""
+
+        self._refresh_identity(self.server.port)
+        self.discovery.probe()
+
     def set_auto_sync_enabled(self, enabled: bool) -> None:
         """Persist the foreground auto sync setting."""
 

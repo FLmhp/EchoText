@@ -306,6 +306,8 @@ class EchoTextApp(App):
     def _manual_refresh(self, *_args: object) -> None:
         self._refresh_environment_diagnosis()
         self._refresh_pair_code()
+        if self.runtime is not None:
+            self.runtime.refresh_discovery()
         self._refresh_peers()
 
     def _refresh_pair_code(self) -> None:

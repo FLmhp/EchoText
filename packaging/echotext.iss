@@ -2,6 +2,12 @@
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher "EchoText"
 #define MyAppExeName "EchoText.exe"
+#ifndef SourceBuildDir
+  #define SourceBuildDir "..\build\windows-dist\EchoText"
+#endif
+#ifndef OutputDirOverride
+  #define OutputDirOverride "..\dist"
+#endif
 
 [Setup]
 AppId={{D72E67BB-6D07-4D89-A627-EA93C92D6D61}
@@ -11,7 +17,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputDir=..\dist
+OutputDir={#OutputDirOverride}
 OutputBaseFilename=EchoText-Setup-v0.1.0
 Compression=lzma
 SolidCompression=yes
@@ -29,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\dist\EchoText\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceBuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\assets\branding\EchoText.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
