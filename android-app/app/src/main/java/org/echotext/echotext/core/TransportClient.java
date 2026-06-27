@@ -73,7 +73,7 @@ public class TransportClient {
     }
 
     public DeviceIdentity hello(String host, int port, int timeoutMillis) throws IOException, JSONException {
-        URL url = new URL("http://" + host + ":" + port + "/api/v1/hello");
+        URL url = new URL("http://" + LanNetwork.formatHttpHost(host) + ":" + port + "/api/v1/hello");
         Log.i(TAG, "GET /api/v1/hello -> " + host + ":" + port);
         HttpURLConnection connection = null;
         try {
@@ -131,7 +131,7 @@ public class TransportClient {
 
     private TransportResult postToHost(String host, int port, String path, JSONObject payload, Map<String, String> headers)
             throws IOException, JSONException {
-        URL url = new URL("http://" + host + ":" + port + path);
+        URL url = new URL("http://" + LanNetwork.formatHttpHost(host) + ":" + port + path);
         Log.i(TAG, "POST " + path + " -> " + host + ":" + port);
         HttpURLConnection connection = null;
         try {

@@ -26,14 +26,21 @@ from echotext.models import EnvironmentDiagnosis, HistoryEntry, Peer
 from echotext.runtime import EchoTextRuntime
 from echotext.transport import TransportError
 
-COLOR_BG = (0.03, 0.07, 0.12, 1.0)
-COLOR_SURFACE = (0.07, 0.16, 0.24, 1.0)
-COLOR_SURFACE_ALT = (0.10, 0.21, 0.31, 1.0)
-COLOR_ACCENT = (0.19, 0.85, 1.0, 1.0)
-COLOR_ACCENT_SOFT = (0.10, 0.28, 0.38, 1.0)
-COLOR_TEXT = (0.93, 0.97, 1.0, 1.0)
-COLOR_TEXT_MUTED = (0.69, 0.78, 0.86, 1.0)
-COLOR_WARN = (1.0, 0.74, 0.42, 1.0)
+COLOR_BG = (0.05, 0.05, 0.11, 1.0)
+COLOR_SURFACE = (0.09, 0.13, 0.22, 1.0)
+COLOR_SURFACE_ALT = (0.12, 0.18, 0.30, 1.0)
+COLOR_ACCENT = (0.36, 0.86, 1.0, 1.0)
+COLOR_ACCENT_SOFT = (0.18, 0.30, 0.48, 1.0)
+COLOR_TEXT = (0.96, 0.97, 1.0, 1.0)
+COLOR_TEXT_MUTED = (0.74, 0.80, 0.89, 1.0)
+COLOR_WARN = (1.0, 0.76, 0.44, 1.0)
+COLOR_RAINBOW_RED = (0.93, 0.34, 0.42, 1.0)
+COLOR_RAINBOW_ORANGE = (0.97, 0.54, 0.24, 1.0)
+COLOR_RAINBOW_YELLOW = (0.95, 0.74, 0.23, 1.0)
+COLOR_RAINBOW_GREEN = (0.35, 0.83, 0.47, 1.0)
+COLOR_RAINBOW_CYAN = (0.28, 0.82, 0.95, 1.0)
+COLOR_RAINBOW_BLUE = (0.38, 0.56, 0.98, 1.0)
+COLOR_RAINBOW_PURPLE = (0.63, 0.42, 0.95, 1.0)
 POLL_CLIPBOARD_SECONDS = 0.75
 PAIR_CODE_REFRESH_SECONDS = 5.0
 
@@ -105,7 +112,7 @@ class EchoTextApp(App):
         self.device_spinner.bind(text=self._update_selected_peer_details)
         device_row.add_widget(self.device_spinner)
         self.refresh_button = Button(on_press=self._manual_refresh, size_hint_x=0.28)
-        self._style_button(self.refresh_button)
+        self._style_button(self.refresh_button, color=COLOR_RAINBOW_YELLOW)
         device_row.add_widget(self.refresh_button)
         root.add_widget(device_row)
 
@@ -121,12 +128,24 @@ class EchoTextApp(App):
         self.peer_detail_label.bind(texture_size=self._resize_peer_detail_label, width=self._resize_peer_detail_label)
         root.add_widget(self.peer_detail_label)
 
+        manual_row = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
+        self.manual_endpoint_input = TextInput(multiline=False, size_hint_x=0.56)
+        self._style_text_input(self.manual_endpoint_input)
+        manual_row.add_widget(self.manual_endpoint_input)
+        self.connect_button = Button(size_hint_x=0.20, on_press=self._connect_manual_peer)
+        self._style_button(self.connect_button, color=COLOR_RAINBOW_CYAN)
+        manual_row.add_widget(self.connect_button)
+        self.copy_ipv6_button = Button(size_hint_x=0.24, on_press=self._copy_local_ipv6)
+        self._style_button(self.copy_ipv6_button, color=COLOR_RAINBOW_PURPLE)
+        manual_row.add_widget(self.copy_ipv6_button)
+        root.add_widget(manual_row)
+
         pair_row = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
         self.pair_code_input = TextInput(multiline=False, input_filter="int")
         self._style_text_input(self.pair_code_input)
         pair_row.add_widget(self.pair_code_input)
         self.pair_button = Button(size_hint_x=0.26, on_press=self._pair_selected_peer)
-        self._style_button(self.pair_button, accent=True)
+        self._style_button(self.pair_button, color=COLOR_RAINBOW_GREEN)
         pair_row.add_widget(self.pair_button)
         root.add_widget(pair_row)
 
@@ -147,16 +166,16 @@ class EchoTextApp(App):
 
         action_row = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
         self.paste_button = Button(on_press=self._paste_clipboard)
-        self._style_button(self.paste_button)
+        self._style_button(self.paste_button, color=COLOR_RAINBOW_ORANGE)
         action_row.add_widget(self.paste_button)
         self.send_button = Button(on_press=self._send_text)
-        self._style_button(self.send_button, accent=True)
+        self._style_button(self.send_button, color=COLOR_RAINBOW_BLUE)
         action_row.add_widget(self.send_button)
         self.copy_latest_button = Button(on_press=self._copy_latest)
-        self._style_button(self.copy_latest_button)
+        self._style_button(self.copy_latest_button, color=COLOR_RAINBOW_PURPLE)
         action_row.add_widget(self.copy_latest_button)
         self.clear_button = Button(on_press=self._clear_history)
-        self._style_button(self.clear_button)
+        self._style_button(self.clear_button, color=COLOR_RAINBOW_RED)
         action_row.add_widget(self.clear_button)
         root.add_widget(action_row)
 
@@ -238,12 +257,12 @@ class EchoTextApp(App):
         self._root_bg_rect.pos = widget.pos
         self._root_bg_rect.size = widget.size
 
-    def _style_button(self, button: Button, accent: bool = False) -> None:
+    def _style_button(self, button: Button, color: tuple[float, float, float, float] | None = None) -> None:
         button.background_normal = ""
         button.background_down = ""
         button.background_disabled_normal = ""
         button.background_disabled_down = ""
-        button.background_color = COLOR_ACCENT_SOFT if accent else COLOR_SURFACE_ALT
+        button.background_color = color or COLOR_SURFACE_ALT
         button.color = COLOR_TEXT
         button.bold = True
         button.font_size = "15sp"
@@ -378,6 +397,38 @@ class EchoTextApp(App):
         self._set_status(f"{self.translate('status_paired')}: {paired.name}")
         self._refresh_peers()
 
+    def _connect_manual_peer(self, *_args: object) -> None:
+        if self.runtime is None:
+            return
+        endpoint_text = self.manual_endpoint_input.text.strip()
+        if not endpoint_text:
+            self._set_status(self.translate("status_enter_manual_ip"))
+            return
+        try:
+            peer = self.runtime.resolve_peer(endpoint_text)
+        except ValueError:
+            self._set_status(self.translate("status_invalid_manual_ip"))
+            return
+        except TransportError as exc:
+            self._set_status(f"{self.translate('status_failed')}: {exc}")
+            return
+        self.selected_peer_id = peer.device_id
+        self._refresh_peers()
+        self._set_status(f"{self.translate('status_connected')}: {peer.name}")
+
+    def _copy_local_ipv6(self, *_args: object) -> None:
+        if self.runtime is None:
+            return
+        ipv6 = self.runtime.local_ipv6_address()
+        if not ipv6:
+            self._set_status(self.translate("status_no_ipv6"))
+            return
+        self._clipboard_copy(ipv6)
+        if not self._clipboard_available:
+            self._set_status(self.translate("status_clipboard_unavailable"))
+            return
+        self._set_status(f"{self.translate('status_ipv6_copied')}: {ipv6}")
+
     def _send_text(self, *_args: object) -> None:
         if self.runtime is None:
             return
@@ -494,8 +545,11 @@ class EchoTextApp(App):
     def _apply_translations(self) -> None:
         self.title = self.translate("title")
         self.refresh_button.text = self.translate("refresh")
+        self.connect_button.text = self.translate("connect")
+        self.copy_ipv6_button.text = self.translate("copy_ipv6")
         self.pair_button.text = self.translate("pair")
         self.pair_code_input.hint_text = self.translate("pair_code_hint")
+        self.manual_endpoint_input.hint_text = self.translate("manual_ip_hint")
         self.auto_sync_label.text = self.translate("auto_sync")
         self.history_setting_label.text = self.translate("persistent_history")
         self.message_input.hint_text = self.translate("message")

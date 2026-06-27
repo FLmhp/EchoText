@@ -13,7 +13,7 @@ from typing import Any
 
 from echotext.crypto import sign_payload, verify_signature
 from echotext.models import DeviceIdentity, Peer, TextMessage
-from echotext.network import normalize_hosts
+from echotext.network import format_http_host, normalize_hosts
 from echotext.serialization import dataclass_to_dict, identity_from_dict, message_from_dict
 
 DEFAULT_TRANSPORT_PORT = 48735
@@ -235,7 +235,7 @@ class TransportClient:
         """Fetch peer identity metadata from a candidate host."""
 
         request = urllib.request.Request(
-            f"http://{host}:{port}/api/v1/hello",
+            f"http://{format_http_host(host)}:{port}/api/v1/hello",
             headers={"Accept": "application/json"},
             method="GET",
         )
@@ -276,7 +276,7 @@ class TransportClient:
     ) -> _PostResult:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
-            f"http://{host}:{port}{path}",
+            f"http://{format_http_host(host)}:{port}{path}",
             data=body,
             headers={
                 "Content-Type": "application/json; charset=utf-8",

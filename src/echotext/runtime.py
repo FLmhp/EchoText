@@ -8,9 +8,9 @@ from echotext.crypto import PairCode, generate_shared_secret
 from echotext.discovery import DiscoveryService
 from echotext.history import HistoryStore
 from echotext.models import DeviceIdentity, HistoryEntry, Peer, TextMessage
-from echotext.network import lan_ipv4_candidates, normalize_hosts
+from echotext.network import lan_ipv4_candidates, lan_ipv6_candidates, normalize_hosts, parse_host_endpoint
 from echotext.settings import SettingsStore
-from echotext.transport import TransportClient, TransportError, TransportServer
+from echotext.transport import DEFAULT_TRANSPORT_PORT, TransportClient, TransportError, TransportServer
 
 
 class EchoTextRuntime:
@@ -168,6 +168,44 @@ class EchoTextRuntime:
 
         self._refresh_identity(self.server.port)
         self.discovery.probe()
+
+    def resolve_peer(self, endpoint_text: str) -> Peer:
+        """Resolve a direct-connect endpoint into a selectable peer."""
+
+        endpoint = parse_host_endpoint(endpoint_text, default_port=DEFAULT_TRANSPORT_PORT)
+        peer_identity = self.client.hello(endpoint.host, endpoint.port)
+        existing = self._paired_peers.get(peer_identity.device_id)
+        hosts = normalize_hosts(
+            endpoint.host,
+            [
+                *peer_identity.hosts,
+                peer_identity.host,
+                *(existing.hosts if existing is not None else ()),
+            ],
+        )
+        resolved = Peer(
+            device_id=peer_identity.device_id,
+            name=peer_identity.name,
+            platform=peer_identity.platform,
+            host=hosts[0],
+            port=peer_identity.port,
+            hosts=hosts,
+            last_seen=time.time(),
+            shared_secret=existing.shared_secret if existing is not None else None,
+        )
+        if existing is None:
+            self._discovered_peers[resolved.device_id] = resolved
+        else:
+            self._paired_peers[resolved.device_id] = resolved
+        if self._on_peers_changed is not None:
+            self._on_peers_changed()
+        return resolved
+
+    def local_ipv6_address(self) -> str | None:
+        """Return the preferred local IPv6 address for manual sharing."""
+
+        candidates = lan_ipv6_candidates()
+        return candidates[0] if candidates else None
 
     def set_auto_sync_enabled(self, enabled: bool) -> None:
         """Persist the foreground auto sync setting."""

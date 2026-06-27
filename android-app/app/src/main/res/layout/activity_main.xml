@@ -71,6 +71,46 @@
             android:orientation="horizontal">
 
             <EditText
+                android:id="@+id/manual_ip_input"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/echo_glow"
+                android:hint="@string/manual_ip_hint"
+                android:inputType="textUri"
+                android:singleLine="true"
+                android:textColor="@color/echo_text"
+                android:textColorHint="@color/echo_text_muted" />
+
+            <Button
+                android:id="@+id/connect_button"
+                android:layout_width="96dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="10dp"
+                android:backgroundTint="@color/echo_surface_alt"
+                android:text="@string/connect"
+                android:textAllCaps="false"
+                android:textColor="@color/echo_text" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/copy_ipv6_button"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="10dp"
+            android:backgroundTint="@color/echo_surface_alt"
+            android:text="@string/copy_ipv6"
+            android:textAllCaps="false"
+            android:textColor="@color/echo_text" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
                 android:id="@+id/pair_code_input"
                 android:layout_width="0dp"
                 android:layout_height="50dp"

@@ -50,11 +50,14 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     private TextView pairCodeText;
     private TextView peerDetailText;
     private Spinner deviceSpinner;
+    private EditText manualIpInput;
     private EditText pairCodeInput;
     private EditText messageInput;
     private SwitchCompat autoSyncSwitch;
     private SwitchCompat persistentHistorySwitch;
     private TextView historyText;
+    private Button connectButton;
+    private Button copyIpv6Button;
     private Button pairButton;
     private Button sendButton;
 
@@ -157,11 +160,14 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         pairCodeText = findViewById(R.id.pair_code_text);
         peerDetailText = findViewById(R.id.peer_detail_text);
         deviceSpinner = findViewById(R.id.device_spinner);
+        manualIpInput = findViewById(R.id.manual_ip_input);
         pairCodeInput = findViewById(R.id.pair_code_input);
         messageInput = findViewById(R.id.message_input);
         autoSyncSwitch = findViewById(R.id.auto_sync_switch);
         persistentHistorySwitch = findViewById(R.id.persistent_history_switch);
         historyText = findViewById(R.id.history_text);
+        connectButton = findViewById(R.id.connect_button);
+        copyIpv6Button = findViewById(R.id.copy_ipv6_button);
         pairButton = findViewById(R.id.pair_button);
         sendButton = findViewById(R.id.send_button);
 
@@ -193,6 +199,8 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
             controller.refreshDiscovery();
             refreshUi();
         });
+        connectButton.setOnClickListener(view -> connectManualPeer());
+        copyIpv6Button.setOnClickListener(view -> copyLocalIpv6());
         pairButton.setOnClickListener(view -> pairSelectedPeer());
         pasteButton.setOnClickListener(view -> {
             String clipboardText = readClipboardText();
@@ -344,6 +352,36 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         });
     }
 
+    private void connectManualPeer() {
+        String endpointText = manualIpInput.getText().toString().trim();
+        if (endpointText.isEmpty()) {
+            setStatus(getString(R.string.status_enter_manual_ip));
+            return;
+        }
+        setRequestButtonsEnabled(false);
+        requestExecutor.execute(() -> {
+            try {
+                Peer peer = controller.resolvePeer(endpointText);
+                handler.post(() -> {
+                    selectedPeerDeviceId = peer.deviceId;
+                    refreshPeerList();
+                    setStatus(getString(R.string.status_connected, peer.name));
+                    setRequestButtonsEnabled(true);
+                });
+            } catch (IllegalArgumentException exception) {
+                handler.post(() -> {
+                    setStatus(getString(R.string.status_invalid_manual_ip));
+                    setRequestButtonsEnabled(true);
+                });
+            } catch (Exception exception) {
+                handler.post(() -> {
+                    setStatus(getString(R.string.status_failed, exception.getMessage()));
+                    setRequestButtonsEnabled(true);
+                });
+            }
+        });
+    }
+
     private void sendSelectedText() {
         Peer peer = selectedPeer();
         if (peer == null) {
@@ -387,6 +425,7 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
     }
 
     private void setRequestButtonsEnabled(boolean enabled) {
+        connectButton.setEnabled(enabled);
         pairButton.setEnabled(enabled);
         sendButton.setEnabled(enabled);
     }
@@ -407,6 +446,20 @@ public class MainActivity extends AppCompatActivity implements EchoTextControlle
         }
         lastClipboardText = text;
         clipboardManager.setPrimaryClip(ClipData.newPlainText("EchoText", text));
+    }
+
+    private void copyLocalIpv6() {
+        String ipv6Address = controller.getLocalIpv6Address();
+        if (ipv6Address == null || ipv6Address.isBlank()) {
+            setStatus(getString(R.string.status_no_ipv6));
+            return;
+        }
+        if (clipboardManager == null) {
+            setStatus(getString(R.string.status_clipboard_unavailable));
+            return;
+        }
+        copyToClipboard(ipv6Address);
+        setStatus(getString(R.string.status_ipv6_copied, ipv6Address));
     }
 
     private String readClipboardText() {

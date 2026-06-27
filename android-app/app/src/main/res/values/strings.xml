@@ -1,16 +1,20 @@
 <resources>
     <string name="app_name">EchoText</string>
     <string name="refresh">Refresh</string>
+    <string name="connect">Connect</string>
     <string name="pair">Pair</string>
     <string name="paste">Paste</string>
     <string name="send">Send</string>
     <string name="copy_latest">Copy latest</string>
+    <string name="copy_ipv6">Copy IPv6</string>
     <string name="clear">Clear</string>
     <string name="auto_sync">Foreground auto sync</string>
     <string name="persistent_history">Save local history</string>
     <string name="message">Message</string>
     <string name="pair_code_hint">Target pair code</string>
+    <string name="manual_ip_hint">Direct IP or [IPv6]:port</string>
     <string name="status_ready">Ready</string>
+    <string name="status_connected">Connected: %1$s</string>
     <string name="status_sent">Sent: %1$s</string>
     <string name="status_paired">Paired: %1$s</string>
     <string name="status_received">Received: %1$s</string>
@@ -18,8 +22,12 @@
     <string name="status_pair_required">Pair with the device before sending text</string>
     <string name="status_select_device">Select a device first</string>
     <string name="status_enter_pair_code">Enter the target pair code</string>
+    <string name="status_enter_manual_ip">Enter the target IP first</string>
+    <string name="status_invalid_manual_ip">Enter a valid IP or [IPv6]:port</string>
     <string name="status_enter_message">Enter a message first</string>
     <string name="status_nothing_to_copy">No message available to copy</string>
+    <string name="status_ipv6_copied">Copied local IPv6: %1$s</string>
+    <string name="status_no_ipv6">No shareable IPv6 address was found</string>
     <string name="status_history_cleared">History cleared</string>
     <string name="status_clipboard_unavailable">Clipboard is unavailable</string>
     <string name="status_clipboard_empty">Clipboard is empty</string>

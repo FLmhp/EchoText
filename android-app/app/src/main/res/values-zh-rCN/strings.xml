@@ -1,16 +1,20 @@
 <resources>
     <string name="app_name">EchoText</string>
     <string name="refresh">刷新</string>
+    <string name="connect">直连</string>
     <string name="pair">配对</string>
     <string name="paste">粘贴</string>
     <string name="send">发送</string>
     <string name="copy_latest">复制最新</string>
+    <string name="copy_ipv6">复制IPv6</string>
     <string name="clear">清空</string>
     <string name="auto_sync">前台自动同步</string>
     <string name="persistent_history">保存本地历史</string>
     <string name="message">消息</string>
     <string name="pair_code_hint">目标配对码</string>
+    <string name="manual_ip_hint">手动输入 IP 或 [IPv6]:端口</string>
     <string name="status_ready">就绪</string>
+    <string name="status_connected">已直连：%1$s</string>
     <string name="status_sent">已发送：%1$s</string>
     <string name="status_paired">已配对：%1$s</string>
     <string name="status_received">已接收：%1$s</string>
@@ -18,8 +22,12 @@
     <string name="status_pair_required">请先与该设备完成配对</string>
     <string name="status_select_device">请先选择设备</string>
     <string name="status_enter_pair_code">请输入目标配对码</string>
+    <string name="status_enter_manual_ip">请先输入目标 IP</string>
+    <string name="status_invalid_manual_ip">请输入有效的 IP 或 [IPv6]:端口</string>
     <string name="status_enter_message">请先输入消息</string>
     <string name="status_nothing_to_copy">当前没有可复制的消息</string>
+    <string name="status_ipv6_copied">已复制本机 IPv6：%1$s</string>
+    <string name="status_no_ipv6">当前没有可直接分享的 IPv6 地址</string>
     <string name="status_history_cleared">历史记录已清空</string>
     <string name="status_clipboard_unavailable">剪贴板不可用</string>
     <string name="status_clipboard_empty">剪贴板为空</string>

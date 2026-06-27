@@ -222,6 +222,43 @@ public class EchoTextController {
         discoveryService.probe();
     }
 
+    public synchronized Peer resolvePeer(String endpointText) throws IOException, JSONException {
+        LanNetwork.HostEndpoint endpoint = LanNetwork.parseHostEndpoint(endpointText, LanNetwork.DEFAULT_ECHOTEXT_PORT);
+        DeviceIdentity peerIdentity = transportClient.hello(endpoint.host, endpoint.port, 2_500);
+        Peer existing = pairedPeers.get(peerIdentity.deviceId);
+        List<String> hosts = LanNetwork.normalizeHosts(
+                endpoint.host,
+                mergeHosts(
+                        peerIdentity.hosts,
+                        peerIdentity.host,
+                        existing == null ? java.util.Collections.emptyList() : existing.hosts));
+        Peer resolved =
+                new Peer(
+                        peerIdentity.deviceId,
+                        peerIdentity.name,
+                        peerIdentity.platform,
+                        hosts.get(0),
+                        peerIdentity.port,
+                        hosts,
+                        System.currentTimeMillis() / 1000.0,
+                        existing == null ? null : existing.sharedSecret);
+        if (existing == null) {
+            if (discoveryService != null) {
+                discoveryService.rememberPeer(resolved);
+                return resolved;
+            }
+        } else {
+            pairedPeers.put(resolved.deviceId, resolved);
+        }
+        notifyPeersChanged();
+        return resolved;
+    }
+
+    public String getLocalIpv6Address() {
+        List<String> candidates = LanNetwork.lanIpv6Candidates();
+        return candidates.isEmpty() ? null : candidates.get(0);
+    }
+
     public synchronized void clearHistory() {
         latestText = "";
         historyStore.clear();

@@ -4,8 +4,18 @@ import ipaddress
 import socket
 from collections.abc import Iterable
 from contextlib import suppress
+from dataclasses import dataclass
 
 _PROBE_TARGETS = ("8.8.8.8", "114.114.114.114")
+DEFAULT_ECHOTEXT_PORT = 48735
+
+
+@dataclass(frozen=True)
+class HostEndpoint:
+    """A parsed IP endpoint for direct peer access."""
+
+    host: str
+    port: int = DEFAULT_ECHOTEXT_PORT
 
 
 def local_lan_ip() -> str:
@@ -22,6 +32,12 @@ def lan_ipv4_candidates() -> list[str]:
     return [candidate for candidate in _ipv4_candidates() if _lan_priority(candidate) > 0]
 
 
+def lan_ipv6_candidates() -> list[str]:
+    """Return non-link-local IPv6 candidates that can be shared directly."""
+
+    return _dedupe([candidate for candidate in _ipv6_candidates() if _is_good_ipv6(candidate)])
+
+
 def should_prefer_source_host(advertised_host: str, source_host: str) -> bool:
     """Return whether discovery should trust the packet source over the advertised host."""
 
@@ -35,15 +51,67 @@ def should_prefer_source_host(advertised_host: str, source_host: str) -> bool:
 
 
 def normalize_hosts(primary_host: str, extra_hosts: Iterable[str] | None = None) -> tuple[str, ...]:
-    """Return deduplicated, valid LAN hosts with the preferred host first."""
+    """Return deduplicated IP hosts with the preferred host first."""
 
     ordered: list[str] = []
-    if _is_valid_ipv4(primary_host):
-        ordered.append(primary_host)
+    normalized_primary = _normalize_ip_literal(primary_host)
+    if normalized_primary is not None:
+        ordered.append(normalized_primary)
     for host in extra_hosts or ():
-        if _is_valid_ipv4(host) and host not in ordered:
-            ordered.append(host)
+        normalized_host = _normalize_ip_literal(host)
+        if normalized_host is not None and normalized_host not in ordered:
+            ordered.append(normalized_host)
     return tuple(ordered)
+
+
+def parse_host_endpoint(value: str, default_port: int = DEFAULT_ECHOTEXT_PORT) -> HostEndpoint:
+    """Parse a manual direct-connect IP input into a host and port."""
+
+    raw = value.strip()
+    if not raw:
+        raise ValueError("empty endpoint")
+
+    if raw.startswith("["):
+        closing = raw.find("]")
+        if closing < 0:
+            raise ValueError("invalid IPv6 endpoint")
+        host = raw[1:closing].strip()
+        remainder = raw[closing + 1 :].strip()
+        if not remainder:
+            port = default_port
+        elif remainder.startswith(":") and remainder[1:].isdigit():
+            port = int(remainder[1:])
+        else:
+            raise ValueError("invalid endpoint port")
+    elif raw.count(":") > 1:
+        host = raw
+        port = default_port
+    elif ":" in raw:
+        host, port_text = raw.rsplit(":", maxsplit=1)
+        if not port_text.isdigit():
+            raise ValueError("invalid endpoint port")
+        port = int(port_text)
+    else:
+        host = raw
+        port = default_port
+
+    normalized_host = _normalize_ip_literal(host)
+    if normalized_host is None:
+        raise ValueError("invalid IP address")
+    if port < 1 or port > 65535:
+        raise ValueError("invalid endpoint port")
+    return HostEndpoint(normalized_host, port)
+
+
+def format_http_host(host: str) -> str:
+    """Return an HTTP-safe host literal, bracketing IPv6 when required."""
+
+    normalized_host = _normalize_ip_literal(host)
+    if normalized_host is None:
+        raise ValueError("invalid IP address")
+    if ":" in normalized_host:
+        return f"[{normalized_host}]"
+    return normalized_host
 
 
 def broadcast_targets(hosts: str | Iterable[str]) -> list[str]:
@@ -90,6 +158,14 @@ def _ipv4_candidates() -> list[str]:
         candidates.extend(item[4][0] for item in socket.getaddrinfo(hostname, None, socket.AF_INET))
 
     return _dedupe([candidate for candidate in candidates if _is_good_ipv4(candidate)])
+
+
+def _ipv6_candidates() -> list[str]:
+    candidates: list[str] = []
+    hostname = socket.gethostname()
+    with suppress(OSError):
+        candidates.extend(item[4][0] for item in socket.getaddrinfo(hostname, None, socket.AF_INET6))
+    return _dedupe([candidate for candidate in candidates if _normalize_ipv6(candidate) is not None])
 
 
 def _probe_ips() -> list[str]:
@@ -168,12 +244,39 @@ def _is_good_ipv4(candidate: str) -> bool:
     return not candidate.startswith("127.") and not candidate.startswith("169.254.")
 
 
+def _is_good_ipv6(candidate: str) -> bool:
+    normalized = _normalize_ipv6(candidate)
+    if normalized is None:
+        return False
+    address = ipaddress.IPv6Address(normalized)
+    return not (address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified)
+
+
 def _is_valid_ipv4(candidate: str) -> bool:
     try:
         ipaddress.IPv4Address(candidate)
     except ipaddress.AddressValueError:
         return False
     return True
+
+
+def _normalize_ipv6(candidate: str) -> str | None:
+    stripped = candidate.strip().strip("[]")
+    if "%" in stripped:
+        stripped = stripped.split("%", maxsplit=1)[0]
+    try:
+        return str(ipaddress.IPv6Address(stripped))
+    except ipaddress.AddressValueError:
+        return None
+
+
+def _normalize_ip_literal(candidate: str) -> str | None:
+    stripped = candidate.strip()
+    if not stripped:
+        return None
+    if _is_valid_ipv4(stripped):
+        return stripped
+    return _normalize_ipv6(stripped)
 
 
 def _dedupe(values: list[str]) -> list[str]:

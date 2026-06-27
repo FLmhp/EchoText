@@ -98,6 +98,10 @@ public class DiscoveryService {
         return snapshot;
     }
 
+    public void rememberPeer(Peer peer) {
+        updatePeer(peer);
+    }
+
     private void broadcastLoop() {
         try {
             broadcastSocket = new DatagramSocket();

@@ -3,7 +3,9 @@ from __future__ import annotations
 from echotext.network import (
     _best_lan_ip,
     broadcast_targets,
+    format_http_host,
     normalize_hosts,
+    parse_host_endpoint,
     should_prefer_source_host,
     subnet_scan_targets,
 )
@@ -44,9 +46,29 @@ def test_normalize_hosts_keeps_primary_and_deduplicates() -> None:
     )
 
 
+def test_normalize_hosts_keeps_ipv6_literals() -> None:
+    assert normalize_hosts("2403:ac00:b101:387::1234", ["[2403:ac00:b101:387::1234]", "192.168.3.27"]) == (
+        "2403:ac00:b101:387::1234",
+        "192.168.3.27",
+    )
+
+
 def test_subnet_scan_targets_follow_reference_same_24_scan() -> None:
     targets = subnet_scan_targets(["172.21.114.240"])
 
     assert "172.21.114.1" in targets
     assert "172.21.114.254" in targets
     assert "172.21.100.161" not in targets
+
+
+def test_parse_host_endpoint_supports_ipv4_and_ipv6() -> None:
+    assert parse_host_endpoint("192.168.3.27:48735").host == "192.168.3.27"
+    assert parse_host_endpoint("192.168.3.27:48735").port == 48735
+    assert parse_host_endpoint("[2403:ac00:b101:387::1234]:5000").host == "2403:ac00:b101:387::1234"
+    assert parse_host_endpoint("[2403:ac00:b101:387::1234]:5000").port == 5000
+    assert parse_host_endpoint("2403:ac00:b101:387::1234").port == 48735
+
+
+def test_format_http_host_brackets_ipv6() -> None:
+    assert format_http_host("192.168.3.27") == "192.168.3.27"
+    assert format_http_host("2403:ac00:b101:387::1234") == "[2403:ac00:b101:387::1234]"

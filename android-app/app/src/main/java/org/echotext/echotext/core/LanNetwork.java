@@ -2,6 +2,7 @@ package org.echotext.echotext.core;
 
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
@@ -14,6 +15,17 @@ import java.util.Set;
 
 public final class LanNetwork {
     private static final String[] PROBE_TARGETS = {"8.8.8.8", "114.114.114.114"};
+    public static final int DEFAULT_ECHOTEXT_PORT = 48735;
+
+    public static final class HostEndpoint {
+        public final String host;
+        public final int port;
+
+        public HostEndpoint(String host, int port) {
+            this.host = host;
+            this.port = port;
+        }
+    }
 
     private LanNetwork() {}
 
@@ -30,6 +42,16 @@ public final class LanNetwork {
         List<String> filtered = new ArrayList<>();
         for (String candidate : candidates) {
             if (lanPriority(candidate) > 0 && !filtered.contains(candidate)) {
+                filtered.add(candidate);
+            }
+        }
+        return filtered;
+    }
+
+    public static List<String> lanIpv6Candidates() {
+        List<String> filtered = new ArrayList<>();
+        for (String candidate : ipv6Candidates()) {
+            if (isGoodIpv6(candidate) && !filtered.contains(candidate)) {
                 filtered.add(candidate);
             }
         }
@@ -70,15 +92,73 @@ public final class LanNetwork {
 
     public static List<String> normalizeHosts(String primaryHost, List<String> extraHosts) {
         List<String> hosts = new ArrayList<>();
-        if (isValidIpv4(primaryHost)) {
-            hosts.add(primaryHost);
+        String normalizedPrimary = normalizeIpLiteral(primaryHost);
+        if (normalizedPrimary != null) {
+            hosts.add(normalizedPrimary);
         }
         for (String host : extraHosts) {
-            if (isValidIpv4(host) && !hosts.contains(host)) {
-                hosts.add(host);
+            String normalizedHost = normalizeIpLiteral(host);
+            if (normalizedHost != null && !hosts.contains(normalizedHost)) {
+                hosts.add(normalizedHost);
             }
         }
         return hosts;
+    }
+
+    public static HostEndpoint parseHostEndpoint(String value) {
+        return parseHostEndpoint(value, DEFAULT_ECHOTEXT_PORT);
+    }
+
+    public static HostEndpoint parseHostEndpoint(String value, int defaultPort) {
+        String raw = value == null ? "" : value.trim();
+        if (raw.isEmpty()) {
+            throw new IllegalArgumentException("empty endpoint");
+        }
+
+        String host;
+        int port = defaultPort;
+        if (raw.startsWith("[")) {
+            int closing = raw.indexOf(']');
+            if (closing < 0) {
+                throw new IllegalArgumentException("invalid IPv6 endpoint");
+            }
+            host = raw.substring(1, closing).trim();
+            String remainder = raw.substring(closing + 1).trim();
+            if (!remainder.isEmpty()) {
+                if (!remainder.startsWith(":")) {
+                    throw new IllegalArgumentException("invalid endpoint port");
+                }
+                port = parsePort(remainder.substring(1));
+            }
+        } else if (raw.chars().filter(ch -> ch == ':').count() > 1) {
+            host = raw;
+        } else if (raw.contains(":")) {
+            int separator = raw.lastIndexOf(':');
+            host = raw.substring(0, separator).trim();
+            port = parsePort(raw.substring(separator + 1));
+        } else {
+            host = raw;
+        }
+
+        String normalizedHost = normalizeIpLiteral(host);
+        if (normalizedHost == null) {
+            throw new IllegalArgumentException("invalid IP address");
+        }
+        if (port < 1 || port > 65535) {
+            throw new IllegalArgumentException("invalid endpoint port");
+        }
+        return new HostEndpoint(normalizedHost, port);
+    }
+
+    public static String formatHttpHost(String host) {
+        String normalizedHost = normalizeIpLiteral(host);
+        if (normalizedHost == null) {
+            throw new IllegalArgumentException("invalid IP address");
+        }
+        if (normalizedHost.contains(":")) {
+            return "[" + normalizedHost + "]";
+        }
+        return normalizedHost;
     }
 
     public static List<String> subnetScanTargets(List<String> hosts) {
@@ -128,6 +208,48 @@ public final class LanNetwork {
                     if (address instanceof Inet4Address) {
                         String hostAddress = address.getHostAddress();
                         if (isGoodIpv4(hostAddress)) {
+                            candidates.add(hostAddress);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Best effort only.
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private static List<String> ipv6Candidates() {
+        Set<String> candidates = new LinkedHashSet<>();
+        String hostname = safeHostname();
+        if (hostname != null) {
+            try {
+                for (InetAddress address : InetAddress.getAllByName(hostname)) {
+                    if (address instanceof Inet6Address) {
+                        String hostAddress = normalizeIpv6(address.getHostAddress());
+                        if (hostAddress != null && isGoodIpv6(hostAddress)) {
+                            candidates.add(hostAddress);
+                        }
+                    }
+                }
+            } catch (UnknownHostException ignored) {
+                // Fall through with interface scan.
+            }
+        }
+
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface networkInterface = interfaces.nextElement();
+                if (!networkInterface.isUp() || networkInterface.isLoopback()) {
+                    continue;
+                }
+                Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress address = addresses.nextElement();
+                    if (address instanceof Inet6Address) {
+                        String hostAddress = normalizeIpv6(address.getHostAddress());
+                        if (hostAddress != null && isGoodIpv6(hostAddress)) {
                             candidates.add(hostAddress);
                         }
                     }
@@ -244,6 +366,19 @@ public final class LanNetwork {
         return isValidIpv4(candidate) && !candidate.startsWith("127.") && !candidate.startsWith("169.254.");
     }
 
+    private static boolean isGoodIpv6(String candidate) {
+        try {
+            InetAddress address = InetAddress.getByName(candidate);
+            return address instanceof Inet6Address
+                    && !address.isLoopbackAddress()
+                    && !address.isLinkLocalAddress()
+                    && !address.isMulticastAddress()
+                    && !address.isAnyLocalAddress();
+        } catch (UnknownHostException exception) {
+            return false;
+        }
+    }
+
     private static boolean isValidIpv4(String candidate) {
         try {
             InetAddress address = InetAddress.getByName(candidate);
@@ -251,5 +386,47 @@ public final class LanNetwork {
         } catch (UnknownHostException exception) {
             return false;
         }
+    }
+
+    private static int parsePort(String rawPort) {
+        try {
+            return Integer.parseInt(rawPort.trim());
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("invalid endpoint port", exception);
+        }
+    }
+
+    private static String normalizeIpLiteral(String candidate) {
+        if (candidate == null) {
+            return null;
+        }
+        String stripped = candidate.trim();
+        if (stripped.isEmpty()) {
+            return null;
+        }
+        if (isValidIpv4(stripped)) {
+            return stripped;
+        }
+        return normalizeIpv6(stripped);
+    }
+
+    private static String normalizeIpv6(String candidate) {
+        String stripped = candidate.trim();
+        if (stripped.startsWith("[") && stripped.endsWith("]")) {
+            stripped = stripped.substring(1, stripped.length() - 1);
+        }
+        int scopeIndex = stripped.indexOf('%');
+        if (scopeIndex >= 0) {
+            stripped = stripped.substring(0, scopeIndex);
+        }
+        try {
+            InetAddress address = InetAddress.getByName(stripped);
+            if (address instanceof Inet6Address) {
+                return address.getHostAddress();
+            }
+        } catch (UnknownHostException ignored) {
+            return null;
+        }
+        return null;
     }
 }
