@@ -237,8 +237,11 @@ public class DiscoveryService {
 
     private void scanHttpPeers() {
         try {
+            if (!peers.isEmpty()) {
+                return;
+            }
             DeviceIdentity identity = identityProvider.identity();
-            List<String> candidates = LanNetwork.subnetScanTargets(identity.hosts, 8_192);
+            List<String> candidates = LanNetwork.subnetScanTargets(identity.hosts);
             if (candidates.isEmpty()) {
                 return;
             }

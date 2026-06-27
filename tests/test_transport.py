@@ -75,7 +75,7 @@ def test_transport_server_prefers_stable_port() -> None:
         server.stop()
 
 
-def test_transport_server_falls_back_when_stable_port_is_taken() -> None:
+def test_transport_server_raises_when_stable_port_is_taken() -> None:
     occupied_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         occupied_socket.bind(("", DEFAULT_TRANSPORT_PORT))
@@ -84,14 +84,16 @@ def test_transport_server_falls_back_when_stable_port_is_taken() -> None:
         pytest.skip("stable transport port is already in use by another process")
     occupied_socket.listen(1)
     identity = DeviceIdentity("receiver", "Receiver", "Windows", "127.0.0.1", 0)
-    server = TransportServer(
-        lambda: identity, lambda code: True, lambda device_id: None, lambda message, peer: None, lambda peer: None
-    )
     try:
-        server.start()
-        assert server.port not in {0, DEFAULT_TRANSPORT_PORT}
+        with pytest.raises(OSError):
+            TransportServer(
+                lambda: identity,
+                lambda code: True,
+                lambda device_id: None,
+                lambda message, peer: None,
+                lambda peer: None,
+            )
     finally:
-        server.stop()
         occupied_socket.close()
 
 

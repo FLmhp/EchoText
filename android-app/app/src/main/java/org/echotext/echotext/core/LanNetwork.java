@@ -1,21 +1,20 @@
 package org.echotext.echotext.core;
 
+import java.net.DatagramSocket;
 import java.net.Inet4Address;
 import java.net.InetAddress;
-import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
-import java.net.DatagramSocket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public final class LanNetwork {
+    private static final String[] PROBE_TARGETS = {"8.8.8.8", "114.114.114.114"};
+
     private LanNetwork() {}
 
     public static String localLanIp() {
@@ -54,19 +53,16 @@ public final class LanNetwork {
     public static List<String> broadcastTargets(List<String> hosts) {
         List<String> targets = new ArrayList<>();
         targets.add("255.255.255.255");
-        Map<String, String> broadcastsByHost = interfaceBroadcastsByHost();
-        for (String host : hosts) {
-            String broadcast = broadcastsByHost.get(host);
-            if (broadcast == null) {
-                broadcast = derivedBroadcastHost(host);
+        for (String prefix : ipv4Prefixes24(hosts)) {
+            String target = prefix + "255";
+            if (!targets.contains(target)) {
+                targets.add(target);
             }
-            if (broadcast != null && !targets.contains(broadcast)) {
-                targets.add(broadcast);
-            }
-            for (String extraTarget : legacyPrivateBroadcastTargets(host)) {
-                if (!targets.contains(extraTarget)) {
-                    targets.add(extraTarget);
-                }
+        }
+        for (String prefix : ipv4Prefixes16(hosts)) {
+            String target = prefix + "255.255";
+            if (!targets.contains(target)) {
+                targets.add(target);
             }
         }
         return targets;
@@ -86,28 +82,13 @@ public final class LanNetwork {
     }
 
     public static List<String> subnetScanTargets(List<String> hosts) {
-        return subnetScanTargets(hosts, 8_192);
-    }
-
-    public static List<String> subnetScanTargets(List<String> hosts, int maxHosts) {
+        Set<String> localHosts = new LinkedHashSet<>(normalizeHosts("", hosts));
         List<String> targets = new ArrayList<>();
-        Set<String> localHosts = new LinkedHashSet<>();
-        for (String host : hosts) {
-            if (isValidIpv4(host)) {
-                localHosts.add(host);
-            }
-        }
-        Set<String> seen = new LinkedHashSet<>(localHosts);
-        Map<String, Short> prefixesByHost = interfacePrefixesByHost();
-        int remaining = Math.max(maxHosts, 0);
-        for (String host : localHosts) {
-            for (String candidate : scanTargetsForHost(host, prefixesByHost.get(host), remaining)) {
-                if (seen.add(candidate)) {
+        for (String prefix : ipv4Prefixes24(localHosts)) {
+            for (int suffix = 1; suffix < 255; suffix++) {
+                String candidate = prefix + suffix;
+                if (!localHosts.contains(candidate) && !targets.contains(candidate)) {
                     targets.add(candidate);
-                    remaining -= 1;
-                    if (remaining <= 0) {
-                        return targets;
-                    }
                 }
             }
         }
@@ -116,10 +97,24 @@ public final class LanNetwork {
 
     private static List<String> ipv4Candidates() {
         Set<String> candidates = new LinkedHashSet<>();
-        String socketIp = localIpFromSocket();
-        if (socketIp != null) {
-            candidates.add(socketIp);
+        candidates.addAll(probeIps());
+
+        String hostname = safeHostname();
+        if (hostname != null) {
+            try {
+                for (InetAddress address : InetAddress.getAllByName(hostname)) {
+                    if (address instanceof Inet4Address) {
+                        String hostAddress = address.getHostAddress();
+                        if (isGoodIpv4(hostAddress)) {
+                            candidates.add(hostAddress);
+                        }
+                    }
+                }
+            } catch (UnknownHostException ignored) {
+                // Fall through with probes and interface scan.
+            }
         }
+
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces.hasMoreElements()) {
@@ -130,74 +125,75 @@ public final class LanNetwork {
                 Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
                 while (addresses.hasMoreElements()) {
                     InetAddress address = addresses.nextElement();
-                    if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
-                        candidates.add(address.getHostAddress());
+                    if (address instanceof Inet4Address) {
+                        String hostAddress = address.getHostAddress();
+                        if (isGoodIpv4(hostAddress)) {
+                            candidates.add(hostAddress);
+                        }
                     }
                 }
             }
         } catch (Exception ignored) {
-            // Fall through with best-effort candidates.
+            // Best effort only.
         }
         return new ArrayList<>(candidates);
     }
 
-    private static Map<String, String> interfaceBroadcastsByHost() {
-        Map<String, String> broadcasts = new HashMap<>();
-        try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = interfaces.nextElement();
-                if (!networkInterface.isUp() || networkInterface.isLoopback()) {
-                    continue;
-                }
-                for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
-                    InetAddress address = interfaceAddress.getAddress();
-                    InetAddress broadcast = interfaceAddress.getBroadcast();
-                    if (address instanceof Inet4Address && broadcast instanceof Inet4Address) {
-                        broadcasts.put(address.getHostAddress(), broadcast.getHostAddress());
+    private static List<String> probeIps() {
+        List<String> ips = new ArrayList<>();
+        for (String target : PROBE_TARGETS) {
+            try (DatagramSocket socket = new DatagramSocket()) {
+                socket.connect(InetAddress.getByName(target), 80);
+                InetAddress address = socket.getLocalAddress();
+                if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                    String hostAddress = address.getHostAddress();
+                    if (isGoodIpv4(hostAddress) && !ips.contains(hostAddress)) {
+                        ips.add(hostAddress);
                     }
                 }
+            } catch (Exception ignored) {
+                // Try the next probe target.
             }
-        } catch (Exception ignored) {
-            // Fall through with /24 best effort fallback.
         }
-        return broadcasts;
+        return ips;
     }
 
-    private static Map<String, Short> interfacePrefixesByHost() {
-        Map<String, Short> prefixes = new HashMap<>();
+    private static String safeHostname() {
         try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = interfaces.nextElement();
-                if (!networkInterface.isUp() || networkInterface.isLoopback()) {
-                    continue;
-                }
-                for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
-                    InetAddress address = interfaceAddress.getAddress();
-                    short prefixLength = interfaceAddress.getNetworkPrefixLength();
-                    if (address instanceof Inet4Address && prefixLength > 0 && prefixLength <= 32) {
-                        prefixes.put(address.getHostAddress(), prefixLength);
-                    }
-                }
-            }
+            return InetAddress.getLocalHost().getHostName();
         } catch (Exception ignored) {
-            // Fall through with /24 best effort fallback.
+            return null;
+        }
+    }
+
+    private static List<String> ipv4Prefixes24(Iterable<String> hosts) {
+        List<String> prefixes = new ArrayList<>();
+        for (String host : hosts) {
+            if (!isValidIpv4(host)) {
+                continue;
+            }
+            String[] octets = host.split("\\.");
+            String prefix = octets[0] + "." + octets[1] + "." + octets[2] + ".";
+            if (!prefixes.contains(prefix)) {
+                prefixes.add(prefix);
+            }
         }
         return prefixes;
     }
 
-    private static String localIpFromSocket() {
-        try (DatagramSocket socket = new DatagramSocket()) {
-            socket.connect(InetAddress.getByName("8.8.8.8"), 53);
-            InetAddress address = socket.getLocalAddress();
-            if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
-                return address.getHostAddress();
+    private static List<String> ipv4Prefixes16(Iterable<String> hosts) {
+        List<String> prefixes = new ArrayList<>();
+        for (String host : hosts) {
+            if (!isValidIpv4(host)) {
+                continue;
             }
-        } catch (Exception ignored) {
-            // Fall back to interface scan.
+            String[] octets = host.split("\\.");
+            String prefix = octets[0] + "." + octets[1] + ".";
+            if (!prefixes.contains(prefix)) {
+                prefixes.add(prefix);
+            }
         }
-        return null;
+        return prefixes;
     }
 
     private static String bestLanIp(List<String> candidates) {
@@ -244,6 +240,10 @@ public final class LanNetwork {
         return score;
     }
 
+    private static boolean isGoodIpv4(String candidate) {
+        return isValidIpv4(candidate) && !candidate.startsWith("127.") && !candidate.startsWith("169.254.");
+    }
+
     private static boolean isValidIpv4(String candidate) {
         try {
             InetAddress address = InetAddress.getByName(candidate);
@@ -251,114 +251,5 @@ public final class LanNetwork {
         } catch (UnknownHostException exception) {
             return false;
         }
-    }
-
-    private static String derivedBroadcastHost(String host) {
-        if (!isValidIpv4(host)) {
-            return null;
-        }
-        String[] octets = host.split("\\.");
-        return octets[0] + "." + octets[1] + "." + octets[2] + ".255";
-    }
-
-    private static List<String> legacyPrivateBroadcastTargets(String host) {
-        if (!isValidIpv4(host)) {
-            return Collections.emptyList();
-        }
-        String[] octets = host.split("\\.");
-        int first = Integer.parseInt(octets[0]);
-        int second = Integer.parseInt(octets[1]);
-        if (first == 10 || (first == 172 && second >= 16 && second <= 31)) {
-            return Collections.singletonList(octets[0] + "." + octets[1] + ".255.255");
-        }
-        return Collections.emptyList();
-    }
-
-    private static List<String> scanTargetsForHost(String host, Short prefixLength, int maxHosts) {
-        if (!isValidIpv4(host) || maxHosts <= 0) {
-            return Collections.emptyList();
-        }
-        if (prefixLength == null || prefixLength < 1 || prefixLength >= 24) {
-            return same24Targets(host, maxHosts);
-        }
-
-        long local = ipv4ToLong(host);
-        long networkMask = prefixMask(prefixLength);
-        long network = local & networkMask;
-        long broadcast = network | (~networkMask & 0xFFFF_FFFFL);
-        int startBlock = (int) (network >>> 8);
-        int endBlock = (int) (broadcast >>> 8);
-        int localBlock = (int) (local >>> 8);
-
-        List<String> targets = new ArrayList<>();
-        for (int block : ordered24Blocks(startBlock, endBlock, localBlock)) {
-            long blockBase = ((long) block) << 8;
-            long start = Math.max(blockBase + 1, network + 1);
-            long end = Math.min(blockBase + 254, broadcast - 1);
-            for (long value = start; value <= end; value++) {
-                if (value == local) {
-                    continue;
-                }
-                targets.add(longToIpv4(value));
-                if (targets.size() >= maxHosts) {
-                    return targets;
-                }
-            }
-        }
-        return targets;
-    }
-
-    private static List<String> same24Targets(String host, int maxHosts) {
-        String[] octets = host.split("\\.");
-        String prefix = octets[0] + "." + octets[1] + "." + octets[2] + ".";
-        List<String> targets = new ArrayList<>();
-        for (int suffix = 1; suffix < 255 && targets.size() < maxHosts; suffix++) {
-            String candidate = prefix + suffix;
-            if (!candidate.equals(host)) {
-                targets.add(candidate);
-            }
-        }
-        return targets;
-    }
-
-    private static List<Integer> ordered24Blocks(int startBlock, int endBlock, int localBlock) {
-        List<Integer> blocks = new ArrayList<>();
-        if (localBlock >= startBlock && localBlock <= endBlock) {
-            blocks.add(localBlock);
-        }
-        for (int offset = 1; offset <= (endBlock - startBlock); offset++) {
-            int upper = localBlock + offset;
-            int lower = localBlock - offset;
-            if (upper <= endBlock) {
-                blocks.add(upper);
-            }
-            if (lower >= startBlock) {
-                blocks.add(lower);
-            }
-        }
-        return blocks;
-    }
-
-    private static long prefixMask(int prefixLength) {
-        return prefixLength == 0 ? 0L : (0xFFFF_FFFFL << (32 - prefixLength)) & 0xFFFF_FFFFL;
-    }
-
-    private static long ipv4ToLong(String host) {
-        String[] octets = host.split("\\.");
-        long value = 0L;
-        for (String octet : octets) {
-            value = (value << 8) | Integer.parseInt(octet);
-        }
-        return value & 0xFFFF_FFFFL;
-    }
-
-    private static String longToIpv4(long value) {
-        return ((value >>> 24) & 0xFF)
-                + "."
-                + ((value >>> 16) & 0xFF)
-                + "."
-                + ((value >>> 8) & 0xFF)
-                + "."
-                + (value & 0xFF);
     }
 }

@@ -196,24 +196,14 @@ def _bind_server(
     on_message: Callable[[TextMessage, Peer], None],
     on_peer_paired: Callable[[Peer], None],
 ) -> EchoHTTPServer:
-    try:
-        return EchoHTTPServer(
-            ("", preferred_port),
-            identity_provider,
-            pair_code_matches,
-            peer_provider,
-            on_message,
-            on_peer_paired,
-        )
-    except OSError:
-        return EchoHTTPServer(
-            ("", 0),
-            identity_provider,
-            pair_code_matches,
-            peer_provider,
-            on_message,
-            on_peer_paired,
-        )
+    return EchoHTTPServer(
+        ("", preferred_port),
+        identity_provider,
+        pair_code_matches,
+        peer_provider,
+        on_message,
+        on_peer_paired,
+    )
 
 
 class TransportClient:

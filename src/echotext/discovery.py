@@ -186,12 +186,13 @@ class DiscoveryService:
             sock.close()
 
     def _scan_http_peers(self) -> None:
+        if self._peers:
+            return
         identity = self.identity_provider()
         local_hosts = identity.hosts or (identity.host,)
         candidates = subnet_scan_targets(local_hosts)
         if not candidates:
             return
-        found = False
         with ThreadPoolExecutor(max_workers=48) as executor:
             futures = {executor.submit(self._probe_candidate, candidate): candidate for candidate in candidates}
             for future in as_completed(futures):
@@ -204,9 +205,7 @@ class DiscoveryService:
                 self._peers[peer.device_id] = peer
                 if self.on_peers_changed is not None and (existing is None or existing != peer):
                     self.on_peers_changed()
-                found = True
-                if found and len(self._peers) >= 1:
-                    return
+                return
 
     def _probe_candidate(self, host: str) -> Peer | None:
         try:

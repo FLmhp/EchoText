@@ -5,7 +5,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -72,11 +71,7 @@ public class TransportServer {
         if (!running.compareAndSet(false, true)) {
             return;
         }
-        try {
-            serverSocket = new ServerSocket(DEFAULT_PORT);
-        } catch (BindException exception) {
-            serverSocket = new ServerSocket(0);
-        }
+        serverSocket = new ServerSocket(DEFAULT_PORT);
         executor.execute(this::acceptLoop);
     }
 
