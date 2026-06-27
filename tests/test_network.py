@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from echotext import network
 from echotext.network import _best_lan_ip, broadcast_targets, normalize_hosts, should_prefer_source_host
 
 
@@ -23,6 +24,26 @@ def test_broadcast_targets_include_each_known_subnet() -> None:
         "192.168.3.255",
         "10.127.107.255",
     ]
+
+
+def test_broadcast_targets_use_actual_windows_subnet_mask(monkeypatch) -> None:
+    monkeypatch.setattr(network.sys, "platform", "win32")
+    monkeypatch.setattr(
+        network,
+        "_run_windows_ipconfig",
+        lambda: (
+            """
+Wireless LAN adapter WLAN:
+
+   IPv4 Address. . . . . . . . . . . : 172.21.114.240
+   Subnet Mask . . . . . . . . . . . : 255.255.128.0
+   Default Gateway . . . . . . . . . : 172.21.0.1
+"""
+        ),
+    )
+    monkeypatch.setattr(network, "_WINDOWS_INTERFACE_CACHE", (0.0, []))
+
+    assert broadcast_targets("172.21.114.240") == ["255.255.255.255", "172.21.127.255"]
 
 
 def test_normalize_hosts_keeps_primary_and_deduplicates() -> None:

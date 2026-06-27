@@ -149,9 +149,9 @@ Successful builds place these files in `dist/`:
 - Android build cannot find the SDK:
   Set `ANDROID_SDK_ROOT`, or install the SDK to `%LOCALAPPDATA%\Android\Sdk`.
 - Devices do not appear:
-  Make sure both devices are on the same Wi-Fi and that local broadcast traffic is not blocked. After upgrading, reopen both apps once so they can rebroadcast to `255.255.255.255`, multiple local subnet broadcast targets, and retry remembered peer addresses.
+  Make sure both devices are on the same Wi-Fi and that local broadcast traffic is not blocked. After upgrading, reopen both apps once so they can rebroadcast to `255.255.255.255`, multiple local subnet broadcast targets, and retry remembered peer addresses. Larger campus-style subnets such as `/17` and `/16` are now handled using the real subnet mask instead of assuming `/24`.
 - Devices do not appear on the campus network:
-  Many campus networks split clients on the same SSID into different subnets or enable client/AP isolation. That can block both UDP discovery and direct device-to-device traffic. The latest build adds multi-address discovery and fallback retries, but if devices still cannot see each other, the network itself is usually preventing peer access. In that case, use dorm LAN or a phone hotspot, or confirm the policy with the network administrator.
+  Many campus networks split clients on the same SSID into different subnets or enable client/AP isolation. That can block both UDP discovery and direct device-to-device traffic. The latest build adds real-subnet broadcasts, multi-address discovery, and fallback retries, but if `ping` to the peer IP still reports that the destination host is unreachable, the network itself is usually preventing peer access. In that case, use dorm LAN or a phone hotspot, or confirm the policy with the network administrator.
 - Pairing fails:
   Re-read the target six-digit pair code; codes expire after five minutes. If the devices recently changed networks, refresh the device list or reopen the apps so the latest address gets rebroadcast. If the Windows app is launched from source, also confirm Windows Defender Firewall allows the current process to access the local subnet.
 - Android can receive from Windows but cannot send back:

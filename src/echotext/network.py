@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
+import subprocess
+import sys
+import time
 from collections.abc import Iterable
 from contextlib import suppress
+from dataclasses import dataclass
+
+_IPCONFIG_CACHE_TTL_SECONDS = 15.0
+_WINDOWS_INTERFACE_CACHE: tuple[float, list[_Ipv4Interface]] = (0.0, [])
+
+
+@dataclass(frozen=True)
+class _Ipv4Interface:
+    address: str
+    netmask: str
+    broadcast: str
 
 
 def local_lan_ip() -> str:
@@ -50,9 +65,9 @@ def broadcast_targets(hosts: str | Iterable[str]) -> list[str]:
     targets = ["255.255.255.255"]
     host_values = [hosts] if isinstance(hosts, str) else list(hosts)
     for host in host_values:
-        derived = _derived_broadcast_host(host)
-        if derived and derived not in targets:
-            targets.append(derived)
+        broadcast = _broadcast_host(host)
+        if broadcast and broadcast not in targets:
+            targets.append(broadcast)
     return targets
 
 
@@ -132,6 +147,84 @@ def _is_valid_ipv4(candidate: str) -> bool:
 
 def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
+
+
+def _broadcast_host(host: str) -> str | None:
+    for interface in _ipv4_interfaces():
+        if interface.address == host:
+            return interface.broadcast
+    return _derived_broadcast_host(host)
+
+
+def _ipv4_interfaces() -> list[_Ipv4Interface]:
+    if sys.platform == "win32":
+        return _windows_ipv4_interfaces()
+    return []
+
+
+def _windows_ipv4_interfaces() -> list[_Ipv4Interface]:
+    global _WINDOWS_INTERFACE_CACHE
+
+    now = time.monotonic()
+    cached_at, cached_interfaces = _WINDOWS_INTERFACE_CACHE
+    if now - cached_at < _IPCONFIG_CACHE_TTL_SECONDS:
+        return cached_interfaces
+
+    output = _run_windows_ipconfig()
+    interfaces: list[_Ipv4Interface] = []
+    blocks = re.split(r"\r?\n\r?\n+", output)
+    for block in blocks:
+        values = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", block)
+        if not values:
+            continue
+        address = next((value for value in values if _lan_priority(value) > 0 and not _is_netmask(value)), None)
+        if address is None:
+            continue
+        mask = next((value for value in values if _is_netmask(value)), None)
+        if mask is None:
+            continue
+        broadcast = _broadcast_from_mask(address, mask)
+        if broadcast is None:
+            continue
+        interfaces.append(_Ipv4Interface(address, mask, broadcast))
+
+    _WINDOWS_INTERFACE_CACHE = (now, interfaces)
+    return interfaces
+
+
+def _run_windows_ipconfig() -> str:
+    startupinfo = None
+    creationflags = 0
+    if sys.platform == "win32":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    completed = subprocess.run(
+        ["ipconfig"],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        errors="ignore",
+        startupinfo=startupinfo,
+        creationflags=creationflags,
+    )
+    return completed.stdout
+
+
+def _is_netmask(candidate: str) -> bool:
+    if not _is_valid_ipv4(candidate):
+        return False
+    value = int(ipaddress.IPv4Address(candidate))
+    bits = f"{value:032b}"
+    return "01" not in bits
+
+
+def _broadcast_from_mask(address: str, netmask: str) -> str | None:
+    try:
+        network = ipaddress.IPv4Network(f"{address}/{netmask}", strict=False)
+    except ValueError:
+        return None
+    return str(network.broadcast_address)
 
 
 def _derived_broadcast_host(host: str) -> str | None:

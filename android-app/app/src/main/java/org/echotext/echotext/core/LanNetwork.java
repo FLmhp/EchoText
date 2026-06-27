@@ -2,14 +2,17 @@ package org.echotext.echotext.core;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.net.DatagramSocket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public final class LanNetwork {
@@ -51,10 +54,14 @@ public final class LanNetwork {
     public static List<String> broadcastTargets(List<String> hosts) {
         List<String> targets = new ArrayList<>();
         targets.add("255.255.255.255");
+        Map<String, String> broadcastsByHost = interfaceBroadcastsByHost();
         for (String host : hosts) {
-            String derived = derivedBroadcastHost(host);
-            if (derived != null && !targets.contains(derived)) {
-                targets.add(derived);
+            String broadcast = broadcastsByHost.get(host);
+            if (broadcast == null) {
+                broadcast = derivedBroadcastHost(host);
+            }
+            if (broadcast != null && !targets.contains(broadcast)) {
+                targets.add(broadcast);
             }
         }
         return targets;
@@ -98,6 +105,29 @@ public final class LanNetwork {
             // Fall through with best-effort candidates.
         }
         return new ArrayList<>(candidates);
+    }
+
+    private static Map<String, String> interfaceBroadcastsByHost() {
+        Map<String, String> broadcasts = new HashMap<>();
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface networkInterface = interfaces.nextElement();
+                if (!networkInterface.isUp() || networkInterface.isLoopback()) {
+                    continue;
+                }
+                for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
+                    InetAddress address = interfaceAddress.getAddress();
+                    InetAddress broadcast = interfaceAddress.getBroadcast();
+                    if (address instanceof Inet4Address && broadcast instanceof Inet4Address) {
+                        broadcasts.put(address.getHostAddress(), broadcast.getHostAddress());
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Fall through with /24 best effort fallback.
+        }
+        return broadcasts;
     }
 
     private static String localIpFromSocket() {
